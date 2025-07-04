@@ -151,24 +151,52 @@ class Launcher {
     try {
       const configClient = await this.db.readData("configClient");
       const accountId = configClient?.account_selected;
+
+      console.log("[YS-Launcher]: Account ID selected:", accountId);
+
       const account = accountId
         ? await this.db.readData("accounts", accountId)
         : null;
 
       if (!account) {
-        console.warn("Pas de compte : retour au login.");
+        console.warn("[YS-Launcher]: Pas de compte : retour au login.");
         return changePanel("login");
       }
 
+      console.log("[YS-Launcher]: Account found:", account);
+
+      // Evite d'appeler accountSelect si l'élément ciblé n'existe pas
+      if (typeof accountSelect === "function") {
+        try {
+          await accountSelect(account);
+        } catch (e) {
+          console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
+        }
+      } else {
+        console.warn("[YS-Launcher]: accountSelect n'est pas une fonction");
+      }
+
       const username = account.name || account.username || "OfflineUser";
-      await this.launchOffline({
-        type: "offline",
-        username,
-        version: this.config?.version || "1.20.1",
-      });
+
+      // Exemple d'appel à launchOffline si c'est une méthode existante
+      if (typeof this.launchOffline === "function") {
+        await this.launchOffline({
+          type: "offline",
+          username,
+          version: this.config?.version || "1.20.1",
+        });
+      } else {
+        console.warn("[YS-Launcher]: launchOffline n'est pas défini");
+        changePanel("home");
+      }
     } catch (err) {
-      console.error("Erreur startLauncher:", err);
+      console.error("[YS-Launcher]: Erreur startLauncher:", err);
       changePanel("login");
+    }
+
+    if (!account) {
+      console.warn("Pas de compte : retour au login.");
+      return changePanel("login");
     }
   }
 }

@@ -168,6 +168,7 @@ class Login {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, password }),
+            credentials: "include", // <== Important pour gérer les cookies de session
           }
         );
 
