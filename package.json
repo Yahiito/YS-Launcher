@@ -1,7 +1,7 @@
 {
     "name": "YS-Launcher",
     "preductname": "Y&S Launcher",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "description": "Launcher Mincraft",
     "main": "src/app.js",
     "author": {
@@ -9,12 +9,12 @@
         "email": "contact@luuxis.fr",
         "url": "https://github.com/luuxis"
     },
-    "url": "http://mcrpbready.ddns.net/Yahito/Launcher-Y&S/",
+    "url": "https://www.papeterieshare.fr/Minecraft/YS-Launcher/",
     "scripts": {
         "start": "cross-env-shell NODE_ENV=dev electron .",
         "dev": "cross-env-shell DEV_TOOL=open nodemon --exec npm start",
         "build": "node build.js --obf=true --build=platform",
-        "icon": "node build.js --icon=http://mcrpbready.ddns.net/Yahito/Image/Mugiwara.png"
+        "icon": "node build.js --icon=https://www.papeterieshare.fr/Minecraft/Images/icon.png"
     },
     "license": "CCANC",
     "nodemonConfig": {
