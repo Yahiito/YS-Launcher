@@ -191,6 +191,10 @@ class Login {
         if (!data.meta) data.meta = {};
         data.meta.type = "offline";
 
+        // Ajoute le mot de passe saisi à l'objet data pour la reconnexion auto
+        data.password = password;
+        // Ajoute explicitement le champ username pour la cohérence locale
+        data.username = username;
         await this.saveData(data);
         popupLogin.closePopup();
       } catch (err) {
@@ -387,6 +391,10 @@ class Login {
   }
 
   async saveData(connectionData) {
+    // Ajoute le mot de passe si fourni (pour reconnexion auto)
+    if (connectionData.password) {
+      connectionData.password = connectionData.password;
+    }
     let configClient = await this.db.readData("configClient");
     let account = await this.db.createData("accounts", connectionData);
     let instanceSelect = configClient.instance_selct;

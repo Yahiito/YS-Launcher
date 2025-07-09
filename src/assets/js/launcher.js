@@ -150,53 +150,61 @@ class Launcher {
   async startLauncher() {
     try {
       const configClient = await this.db.readData("configClient");
-      const accountId = configClient?.account_selected;
-
-      console.log("[YS-Launcher]: Account ID selected:", accountId);
-
-      const account = accountId
-        ? await this.db.readData("accounts", accountId)
-        : null;
-
-      if (!account) {
-        console.warn("[YS-Launcher]: Pas de compte : retour au login.");
-        return changePanel("login");
-      }
-
-      console.log("[YS-Launcher]: Account found:", account);
-
-      // Evite d'appeler accountSelect si l'élément ciblé n'existe pas
-      if (typeof accountSelect === "function") {
-        try {
-          await accountSelect(account);
-        } catch (e) {
-          console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
+      // Récupère tous les comptes locaux
+      const allAccounts = await this.db.readAllData("accounts");
+      let connectedAccounts = [];
+      for (const acc of allAccounts) {
+        if (acc.username && acc.password) {
+          try {
+            // Tente une connexion automatique au site web
+            const response = await fetch("https://www.papeterieshare.fr/Minecraft/auth.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username: acc.username, password: acc.password }),
+              credentials: "include"
+            });
+            const data = await response.json();
+            if (data && data.username) {
+              connectedAccounts.push(acc);
+              // Optionnel : mettre à jour la session locale si besoin
+            }
+          } catch (e) {
+            console.warn("[YS-Launcher]: Connexion auto échouée pour", acc.username, e);
+          }
         }
-      } else {
-        console.warn("[YS-Launcher]: accountSelect n'est pas une fonction");
       }
-
-      const username = account.name || account.username || "OfflineUser";
-
-      // Exemple d'appel à launchOffline si c'est une méthode existante
-      if (typeof this.launchOffline === "function") {
-        await this.launchOffline({
-          type: "offline",
-          username,
-          version: this.config?.version || "1.20.1",
-        });
-      } else {
-        console.warn("[YS-Launcher]: launchOffline n'est pas défini");
-        changePanel("home");
+      // Si au moins un compte connecté, sélectionne le premier
+      if (connectedAccounts.length > 0) {
+        const account = connectedAccounts[0];
+        // Ajoute le compte à l'UI (liste comptes paramètre)
+        if (typeof addAccount === "function") {
+          addAccount(account);
+        }
+        if (typeof accountSelect === "function") {
+          try {
+            await accountSelect(account);
+          } catch (e) {
+            console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
+          }
+        }
+        // ...lance le jeu ou la home comme avant...
+        const username = account.name || account.username || "OfflineUser";
+        if (typeof this.launchOffline === "function") {
+          await this.launchOffline({
+            type: "offline",
+            username,
+            version: this.config?.version || "1.20.1",
+          });
+        } else {
+          changePanel("home");
+        }
+        return;
       }
+      // Sinon, panel login
+      changePanel("login");
     } catch (err) {
       console.error("[YS-Launcher]: Erreur startLauncher:", err);
       changePanel("login");
-    }
-
-    if (!account) {
-      console.warn("Pas de compte : retour au login.");
-      return changePanel("login");
     }
   }
 }
