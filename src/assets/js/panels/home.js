@@ -34,6 +34,10 @@ class Home {
     document
       .querySelector(".settings-btn")
       .addEventListener("click", (e) => changePanel("settings"));
+
+    document.getElementById('refresh-launcher-btn')?.addEventListener('click', () => {
+      window.location.reload();
+    });
   }
 
   async news() {
