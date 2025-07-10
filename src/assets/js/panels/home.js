@@ -335,7 +335,6 @@ class Home {
 
     launch.on("extract", (extract) => {
       ipcRenderer.send("main-window-progress-load");
-      console.log(extract);
     });
 
     launch.on("progress", (progress, size) => {
@@ -362,15 +361,12 @@ class Home {
       let hours = Math.floor(time / 3600);
       let minutes = Math.floor((time - hours * 3600) / 60);
       let seconds = Math.floor(time - hours * 3600 - minutes * 60);
-      console.log(`${hours}h ${minutes}m ${seconds}s`);
     });
 
     launch.on("speed", (speed) => {
-      console.log(`${(speed / 1067008).toFixed(2)} Mb/s`);
     });
 
     launch.on("patch", (patch) => {
-      console.log(patch);
       ipcRenderer.send("main-window-progress-load");
       infoStarting.innerHTML = `Patch en cours...`;
     });
@@ -383,7 +379,6 @@ class Home {
       new logger("Minecraft", "#36b030");
       ipcRenderer.send("main-window-progress-load");
       infoStarting.innerHTML = `Demarrage en cours...`;
-      console.log(e);
     });
 
     launch.on("close", (code) => {

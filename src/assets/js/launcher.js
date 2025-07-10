@@ -29,7 +29,7 @@ const os = require("os");
 class Launcher {
   async init() {
     this.initLog();
-    console.log("Initializing Launcher...");
+    console.log('Bienvenue !');
     this.shortcut();
     await setBackground();
     this.initFrame();

@@ -36,7 +36,6 @@ class Login {
   }
 
   async getMicrosoft() {
-    console.log("Initializing Microsoft login...");
     let popupLogin = new popup();
     let loginHome = document.querySelector(".login-home");
     let microsoftBtn = document.querySelector(".connect-home");
@@ -71,8 +70,6 @@ class Login {
   }
 
   async getCrack() {
-    console.log("Initializing offline login...");
-
     let popupLogin = new popup();
 
     // Affiche le choix entre connexion / inscription
@@ -296,7 +293,6 @@ class Login {
   }
 
   async getAZauth() {
-    console.log("Initializing AZauth login...");
     let AZauthClient = new AZauth(this.config.online);
     let PopupLogin = new popup();
     let loginAZauth = document.querySelector(".login-AZauth");

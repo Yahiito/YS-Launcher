@@ -497,7 +497,6 @@ class Settings {
         skinUrl = defaultSkinUrl;
       }
     }
-    console.log("skinview3d present ?", window.skinview3d);
     if (window.skinview3d) {
       const viewer = new skinview3d.SkinViewer({
         canvas: Object.assign(document.createElement("canvas"), {
@@ -518,7 +517,6 @@ class Settings {
         viewer.animation = new skinview3d.WalkingAnimation();
       }
       // Debug : log si le canvas est bien ajouté
-      console.log('canvas ajouté ?', viewerDiv.querySelector('canvas'));
     } else {
       viewerDiv.innerHTML = '<div style="color:red;text-align:center">Erreur : skinview3d non chargé</div>';
     }

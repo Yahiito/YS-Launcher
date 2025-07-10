@@ -44,12 +44,10 @@ class Index {
                 code = code.replace(/src\//g, 'app/');
                 if (this.obf) {
                     await new Promise((resolve) => {
-                        console.log(`Obfuscate ${path}`);
                         let obf = JavaScriptObfuscator.obfuscate(code, { optionsPreset: 'medium-obfuscation', disableConsoleOutput: false });
                         resolve(fs.writeFileSync(`${folder}/${fileName}`, obf.getObfuscatedCode(), { encoding: "utf-8" }));
                     })
                 } else {
-                    console.log(`Copy ${path}`);
                     fs.writeFileSync(`${folder}/${fileName}`, code, { encoding: "utf-8" });
                 }
             } else {
@@ -111,7 +109,6 @@ class Index {
                 }
             }
         }).then(() => {
-            console.log('le build est terminé')
         }).catch(err => {
             console.error('Error during build!', err)
         })
@@ -139,7 +136,6 @@ class Index {
             fs.writeFileSync("src/assets/images/icon.icns", png2icons.createICNS(Buffer, png2icons.BILINEAR, 0));
             fs.writeFileSync("src/assets/images/icon.ico", png2icons.createICO(Buffer, png2icons.HERMITE, 0, false));
             fs.writeFileSync("src/assets/images/icon.png", Buffer);
-            console.log('new icon set')
         } else {
             console.log('connection error')
         }
