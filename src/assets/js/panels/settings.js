@@ -55,7 +55,8 @@ class Settings {
           document
             .querySelector(`#account-tab`)
             .classList.add("active-container-settings");
-          return changePanel("home");
+          // Rafraîchit le launcher
+          window.location.reload();
         }
 
         if (activeSettingsBTN)
@@ -451,7 +452,7 @@ class Settings {
     let username = account && account.name ? account.name : null;
     let skinName = username ? username + ".png" : "Steve (défaut)";
     filenameDiv.textContent = skinName;
-    let remoteSkinUrl = username ? `https://www.papeterieshare.fr/Minecraft/Images/Skins/${username}.png` : null;
+    let remoteSkinUrl = username ? `https://www.papeterieshare.fr/Minecraft/Images/Skins/textures/${username}.png` : null;
     let defaultSkinUrl = "assets/images/skin/steve.png";
     let skinUrl = defaultSkinUrl;
     let cacheBuster = '?t=' + Date.now();

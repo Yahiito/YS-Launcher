@@ -256,11 +256,35 @@ class Home {
     );
 
     const welcomeElem = document.getElementById("welcome-message");
+    const playerHeadElem = document.querySelector(".player-head");
     if (welcomeElem) {
       if (account && account.name) {
         welcomeElem.textContent = `Bienvenue, ${account.name} !`;
+        // Affiche la tête du skin
+        let skinUrl = `https://www.papeterieshare.fr/Minecraft/Images/Skins/textures/${account.name}.png?t=${Date.now()}`;
+        let canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        // Ajoute un style pour arrondir les bords
+        canvas.style.borderRadius = '20%';
+        canvas.style.overflow = 'hidden';
+        let ctx = canvas.getContext('2d');
+        let img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+          // Découpe la tête (8x8 pixels en haut à gauche)
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, 8, 8, 8, 8, 0, 0, 64, 64);
+        };
+        img.onerror = function() {
+          ctx.clearRect(0, 0, 64, 64);
+        };
+        img.src = skinUrl;
+        playerHeadElem.innerHTML = '';
+        playerHeadElem.appendChild(canvas);
       } else {
         welcomeElem.textContent = `Bienvenue !`;
+        playerHeadElem.innerHTML = '';
       }
     }
   }
