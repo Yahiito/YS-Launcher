@@ -149,6 +149,8 @@ class Launcher {
 
   async startLauncher() {
     try {
+      // Supprime le dossier skins à chaque lancement d'instance
+      if (window.deleteSkinsFolder) await window.deleteSkinsFolder();
       const configClient = await this.db.readData("configClient");
       // Récupère tous les comptes locaux
       const allAccounts = await this.db.readAllData("accounts");

@@ -1,3 +1,8 @@
+// Handler IPC pour suppression du dossier skins à la demande du renderer
+ipcMain.handle('delete-skins-folder', async () => {
+    await deleteSkinsFolder();
+    return true;
+});
 /**
  * @author Luuxis
  * @license CC-BY-NC 4.0 - https://creativecommons.org/licenses/by-nc/4.0
