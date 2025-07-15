@@ -4,6 +4,9 @@
  */
 
 const { app, ipcMain, nativeTheme } = require('electron');
+const deleteSkinsFolder = require('./deleteSkinsFolder');
+// Supprimer le dossier %appdata%/.YS-Launcher/assets/skins au lancement
+deleteSkinsFolder();
 const { Microsoft } = require('minecraft-java-core');
 const { autoUpdater } = require('electron-updater')
 

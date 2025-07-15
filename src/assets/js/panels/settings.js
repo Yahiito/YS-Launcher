@@ -456,14 +456,7 @@ class Settings {
     let defaultSkinUrl = "assets/images/skin/steve.png";
     let skinUrl = defaultSkinUrl;
     let cacheBuster = '?t=' + Date.now();
-    let localSkinPath = null;
     if (username) {
-      const fs = require('fs');
-      const path = require('path');
-      // Utilise le dossier utilisateur Electron (ex: %APPDATA%/.Mugiwara/skins/)
-      let userData = await appdata();
-      const localDir = path.join(userData, 'skins');
-      localSkinPath = path.join(localDir, username + '.png');
       // Teste si l'image distante existe
       let remoteAvailable = false;
       try {
@@ -477,23 +470,6 @@ class Settings {
       } catch {}
       if (remoteAvailable) {
         skinUrl = remoteSkinUrl + cacheBuster;
-        // Télécharge et met à jour le skin localement
-        try {
-          if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
-          const file = fs.createWriteStream(localSkinPath);
-          const https = require('https');
-          https.get(remoteSkinUrl + cacheBuster, (response) => {
-            if (response.statusCode === 200) {
-              response.pipe(file);
-              file.on('finish', () => file.close());
-            } else {
-              file.close();
-            }
-          }).on('error', () => { file.close(); });
-        } catch {}
-      } else if (fs.existsSync(localSkinPath)) {
-        // Utilise le skin local si dispo
-        skinUrl = 'file://' + localSkinPath.replace(/\\/g, '/');
       } else {
         skinUrl = defaultSkinUrl;
       }
@@ -517,7 +493,6 @@ class Settings {
       } else if (typeof skinview3d.WalkingAnimation === "function") {
         viewer.animation = new skinview3d.WalkingAnimation();
       }
-      // Debug : log si le canvas est bien ajouté
     } else {
       viewerDiv.innerHTML = '<div style="color:red;text-align:center">Erreur : skinview3d non chargé</div>';
     }
