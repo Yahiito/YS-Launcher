@@ -1,8 +1,8 @@
 {
     "name": "YS-Launcher",
     "preductname": "Y&S Launcher",
-    "version": "1.1.6",
-    "description": "Launcher Mincraft",
+    "version": "1.1.7",
+    "description": "Launcher Minecraft",
     "main": "src/app.js",
     "author": {
         "name": "luuxis, Y&S, Inc.",

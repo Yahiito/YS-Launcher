@@ -275,7 +275,7 @@ class Login {
 
         popupLogin.openPopup({
           title: "Succès",
-          content: "Inscription réussie, veuillez vérifier vos emails.",
+          content: "<span color='green'>Inscription réussie.</span>",
           options: true,
         });
 
