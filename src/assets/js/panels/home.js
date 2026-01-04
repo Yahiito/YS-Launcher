@@ -119,7 +119,11 @@ class Home {
         }
 
         if (!instanceSelect) {
-            let newInstanceSelect = instancesList.find(i => i.whitelistActive == false)
+            let newInstanceSelect = instancesList.find(i => i.whitelistActive == false);
+            if (!newInstanceSelect) {
+                console.error("Aucune instance disponible sans whitelist active.");
+                return; // Ou une autre action appropriée
+            }
             let configClient = await this.db.readData('configClient')
             configClient.instance_select = newInstanceSelect.name
             instanceSelect = newInstanceSelect.name
