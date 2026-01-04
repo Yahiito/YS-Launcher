@@ -1,8 +1,8 @@
 {
     "name": "ys-launcher",
-    "productName": "Y&S Launcher",
-    "version": "1.0.0",
-    "description": "Launcher Mincraft",
+    "preductname": "Y&S Launcher",
+    "version": "1.0.2",
+    "description": "Launcher Minecraft",
     "main": "src/app.js",
     "author": {
         "name": "luuxis, Y&S, Inc.",
@@ -26,6 +26,7 @@
         "electron-updater": "^6.6.2",
         "minecraft-java-core": "^4.2.3",
         "node-fetch": "^2.7.0",
+        "skinview3d": "^3.4.1",
         "xml-js": "^1.6.11"
     },
     "devDependencies": {
