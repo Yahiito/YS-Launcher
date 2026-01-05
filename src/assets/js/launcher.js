@@ -37,6 +37,7 @@ class Launcher {
     console.log("Étape 4 : Cadre de la fenêtre initialisé.");
     this.initFrame();
     console.log("Étape 5 : Thème initialisé.");
+    this.initializeTheme();
     console.log("Étape 6 : Configuration chargée.");
     this.config = await config
       .GetConfig()
@@ -45,9 +46,8 @@ class Launcher {
     if (await this.config.error) return this.errorConnect();
     this.db = new database();
     await this.initConfigClient();
-    await this.initializeTheme();
     this.createPanels(Login, Home, Settings);
-    await this.startLauncher();
+    this.startLauncher();
   }
 
   initLog() {
@@ -154,152 +154,77 @@ class Launcher {
   }
 
   async startLauncher() {
-    let accounts = await this.db.readAllData("accounts");
-    let configClient = await this.db.readData("configClient");
-    let accountSelected = configClient ? configClient.account_selected : null;
-    let popupRefresh = new popup();
-
-    if (accounts?.length) {
-      for (let account of accounts) {
-        const accountID = account.ID;
-
-        if (account?.error) {
-          await this.db.deleteData("accounts", accountID);
-          continue;
-        }
-
-        const type = account?.meta?.type;
-
-        // Keep compatibility with upstream account types
-        if (type === "Xbox") {
-          popupRefresh.openPopup({
-            title: "Connexion",
-            content: `Refresh account Type: ${type} | Username: ${account.name}`,
-            color: "var(--color)",
-            background: false,
-          });
-
-          const refreshed = await new Microsoft(this.config.client_id).refresh(account);
-          if (refreshed?.error) {
-            await this.db.deleteData("accounts", accountID);
-            if (accountID == accountSelected) {
-              configClient.account_selected = null;
-              await this.db.updateData("configClient", configClient);
+    try {
+      const configClient = await this.db.readData("configClient");
+      // Récupère tous les comptes locaux
+      const allAccounts = await this.db.readAllData("accounts");
+      let connectedAccounts = [];
+      for (const acc of allAccounts) {
+        if (acc.username && acc.password) {
+          try {
+            // Tente une connexion automatique au site web
+            const response = await fetch("https://lapepterie.com/Minecraft/auth.php", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username: acc.username, password: acc.password }),
+              credentials: "include"
+            });
+            const data = await response.json();
+            if (data && data.username) {
+              connectedAccounts.push(acc);
+              // Optionnel : mettre à jour la session locale si besoin
             }
-            continue;
+          } catch (e) {
+            console.warn("[YS-Launcher]: Connexion auto échouée pour", acc.username, e);
           }
-
-          refreshed.ID = accountID;
-          await this.db.updateData("accounts", refreshed, accountID);
-          await addAccount(refreshed);
-          if (accountID == accountSelected) accountSelect(refreshed);
-          continue;
         }
-
-        if (type === "AZauth") {
-          popupRefresh.openPopup({
-            title: "Connexion",
-            content: `Refresh account Type: ${type} | Username: ${account.name}`,
-            color: "var(--color)",
-            background: false,
-          });
-
-          const refreshed = await new AZauth(this.config.online).verify(account);
-          if (refreshed?.error) {
-            await this.db.deleteData("accounts", accountID);
-            if (accountID == accountSelected) {
-              configClient.account_selected = null;
-              await this.db.updateData("configClient", configClient);
-            }
-            continue;
-          }
-
-          refreshed.ID = accountID;
-          await this.db.updateData("accounts", refreshed, accountID);
-          await addAccount(refreshed);
-          if (accountID == accountSelected) accountSelect(refreshed);
-          continue;
-        }
-
-        if (type === "Mojang") {
-          popupRefresh.openPopup({
-            title: "Connexion",
-            content: `Refresh account Type: ${type} | Username: ${account.name}`,
-            color: "var(--color)",
-            background: false,
-          });
-
-          let refreshed;
-          if (account?.meta?.online === false) {
-            refreshed = await Mojang.login(account.name);
-          } else {
-            refreshed = await Mojang.refresh(account);
-          }
-
-          if (refreshed?.error) {
-            await this.db.deleteData("accounts", accountID);
-            if (accountID == accountSelected) {
-              configClient.account_selected = null;
-              await this.db.updateData("configClient", configClient);
-            }
-            continue;
-          }
-
-          refreshed.ID = accountID;
-          await this.db.updateData("accounts", refreshed, accountID);
-          await addAccount(refreshed);
-          if (accountID == accountSelected) accountSelect(refreshed);
-          continue;
-        }
-
-        // Your website/offline accounts: just load them, no refresh required.
-        if (type === "offline") {
-          await addAccount(account);
-          if (accountID == accountSelected) accountSelect(account);
-          continue;
-        }
-
-        // Unknown type -> cleanup
-        await this.db.deleteData("accounts", accountID);
-        if (accountID == accountSelected) {
-          configClient.account_selected = null;
-          await this.db.updateData("configClient", configClient);
-        }
-      }
-
-      accounts = await this.db.readAllData("accounts");
-      configClient = await this.db.readData("configClient");
-      accountSelected = configClient ? configClient.account_selected : null;
-
-      if (!accountSelected && accounts.length) {
-        configClient.account_selected = accounts[0].ID;
-        await this.db.updateData("configClient", configClient);
-        accountSelect(accounts[0]);
-      }
-
-      if (!accounts.length) {
-        popupRefresh.closePopup();
-        return changePanel("login");
-      }
-
-      popupRefresh.closePopup();
-      return changePanel("home");
+        new logger(pkg.name, '#7289da')
     }
 
-    popupRefresh.closePopup();
-    return changePanel("login");
+    // ...existing code...
+      // Si au moins un compte connecté, sélectionne le premier
+      if (connectedAccounts.length > 0) {
+        const account = connectedAccounts[0];
+        // Ajoute le compte à l'UI (liste comptes paramètre)
+        if (typeof addAccount === "function") {
+          addAccount(account);
+        }
+        if (typeof accountSelect === "function") {
+          try {
+            await accountSelect(account);
+          } catch (e) {
+            console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
+          }
+        }
+        // ...lance le jeu ou la home comme avant...
+        const username = account.name || account.username || "OfflineUser";
+        if (typeof this.launchOffline === "function") {
+          await this.launchOffline({
+            type: "offline",
+            username,
+            version: this.config?.version || "1.20.1",
+          });
+        } else {
+          changePanel("home");
+        }
+        return;
+      }
+      // Sinon, panel login
+      changePanel("login");
+    } catch (err) {
+      console.error("[YS-Launcher]: Erreur startLauncher:", err);
+      changePanel("login");
+    }
   }
 
   // Added a new method to handle theme initialization
-  async initializeTheme() {
-    try {
-      const configClient = await this.db.readData("configClient");
-      const theme = configClient?.launcher_config?.theme || "auto";
-      const isDarkTheme = await ipcRenderer.invoke("is-dark-theme", theme);
-      document.body.className = isDarkTheme ? "dark global" : "light global";
-    } catch (e) {
-      // Keep default styling if anything fails
-    }
+  initializeTheme() {
+    document.addEventListener('DOMContentLoaded', async () => {
+        let configClient = await this.db.readData('configClient');
+        let theme = configClient?.launcher_config?.theme || "auto";
+        let isDarkTheme = await ipcRenderer.invoke('is-dark-theme', theme).then(res => res);
+        document.body.className = isDarkTheme ? 'dark global' : 'light global';
+    });
   }
 }
 

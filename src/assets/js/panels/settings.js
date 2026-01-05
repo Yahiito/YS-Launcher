@@ -52,7 +52,7 @@ class Settings {
           .querySelector("#account-tab")
           .classList.add("active-container-settings");
 
-        changePanel("home");
+        window.location.reload();
         return;
       }
 
@@ -171,7 +171,7 @@ class Settings {
 
     if (totalMem < ram.ramMin) {
       config.java_config.java_memory = { min: 1, max: 2 };
-      await this.db.updateData("configClient", config);
+      this.db.updateData("configClient", config);
       ram = { ramMin: "1", ramMax: "2" };
     }
 
@@ -192,7 +192,7 @@ class Settings {
       minSpan.setAttribute("value", `${min} Go`);
       maxSpan.setAttribute("value", `${max} Go`);
       config.java_config.java_memory = { min: min, max: max };
-      await this.db.updateData("configClient", config);
+      this.db.updateData("configClient", config);
     });
   }
 
@@ -417,7 +417,7 @@ class Settings {
           if (data.success) {
             // Met à jour le skin localement
             account.skin = data.filename;
-            await this.db.updateData("accounts", account, account.ID);
+            await this.db.updateData("accounts", account.ID, account);
             this.updateSkinViewer();
           } else {
             alert("Erreur upload skin: " + (data.error || ""));
@@ -433,32 +433,6 @@ class Settings {
     this.updateSkinViewer();
   }
 
-  async ensureSkinview3dLoaded() {
-    if (globalThis.skinview3d) return true;
-
-    if (!Settings._skinview3dLoadingPromise) {
-      Settings._skinview3dLoadingPromise = new Promise((resolve) => {
-        const existing = document.querySelector('script[data-skinview3d="true"]');
-        if (existing) {
-          existing.addEventListener("load", () => resolve(true), { once: true });
-          existing.addEventListener("error", () => resolve(false), { once: true });
-          return;
-        }
-
-        const script = document.createElement("script");
-        script.src = "assets/js/utils/Skin/skinview3d.bundle.js";
-        script.async = true;
-        script.defer = true;
-        script.dataset.skinview3d = "true";
-        script.onload = () => resolve(Boolean(globalThis.skinview3d));
-        script.onerror = () => resolve(false);
-        document.head.appendChild(script);
-      });
-    }
-
-    return await Settings._skinview3dLoadingPromise;
-  }
-
   async getSelectedAccount() {
     const configClient = await this.db.readData("configClient");
     if (!configClient?.account_selected) return null;
@@ -470,9 +444,6 @@ class Settings {
     const filenameDiv = document.getElementById("skin-filename");
     if (!viewerDiv) return;
     viewerDiv.innerHTML = "";
-
-    await this.ensureSkinview3dLoaded();
-
     let account = await this.getSelectedAccount();
     let username = account && account.name ? account.name : null;
     let skinName = username ? username + ".png" : "Steve (défaut)";
@@ -499,8 +470,8 @@ class Settings {
         skinUrl = defaultSkinUrl;
       }
     }
-    if (globalThis.skinview3d) {
-      const viewer = new globalThis.skinview3d.SkinViewer({
+    if (window.skinview3d) {
+      const viewer = new skinview3d.SkinViewer({
         canvas: Object.assign(document.createElement("canvas"), {
           width: 220,
           height: 320,
@@ -513,10 +484,10 @@ class Settings {
       viewer.controls.enableRotate = true;
       // Compatibilité skinview3d v2 et v3+
       if (viewer.animations && typeof viewer.animations.add === "function") {
-        viewer.animations.add(new globalThis.skinview3d.WalkingAnimation());
+        viewer.animations.add(new skinview3d.WalkingAnimation());
         viewer.animations.play();
-      } else if (typeof globalThis.skinview3d.WalkingAnimation === "function") {
-        viewer.animation = new globalThis.skinview3d.WalkingAnimation();
+      } else if (typeof skinview3d.WalkingAnimation === "function") {
+        viewer.animation = new skinview3d.WalkingAnimation();
       }
     } else {
       viewerDiv.innerHTML = '<div style="color:red;text-align:center">Erreur : skinview3d non chargé</div>';

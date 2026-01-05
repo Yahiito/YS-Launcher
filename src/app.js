@@ -5,7 +5,9 @@
 
 const { app, ipcMain, nativeTheme } = require("electron");
 const deleteSkinsFolder = require("./deleteSkinsFolder");
-// Supprimer le cache skins au lancement (ne touche pas la DB)
+// Supprimer le dossier %appdata%/.YS-Launcher/assets/skins au lancement
+deleteSkinsFolder();
+console.log("Étape 1 : Suppression du dossier des skins réussie.");
 
 const { Microsoft } = require("minecraft-java-core");
 const { autoUpdater } = require("electron-updater");
@@ -34,12 +36,6 @@ if (dev) {
 if (!app.requestSingleInstanceLock()) app.quit();
 else
   app.whenReady().then(() => {
-    try {
-      deleteSkinsFolder(app.getPath("userData"));
-      console.log("Étape 1 : Suppression du dossier des skins réussie.");
-    } catch (e) {
-      console.warn("Étape 1 : Suppression du dossier des skins échouée.", e);
-    }
     if (dev) return MainWindow.createWindow();
     UpdateWindow.createWindow();
     console.log("Étape 3 : Fenêtre principale ou de mise à jour créée.");
