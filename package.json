@@ -1,7 +1,7 @@
 {
     "name": "ys-launcher",
     "preductname": "Y&S Launcher",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "description": "Launcher Minecraft",
     "main": "src/app.js",
     "author": {

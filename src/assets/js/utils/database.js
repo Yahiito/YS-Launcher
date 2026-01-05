@@ -4,6 +4,8 @@
  */
 const Store = require('electron-store');
 const { ipcRenderer } = require('electron');
+const fs = require('fs');
+const path = require('path');
 
 let dev = process.env.NODE_ENV === 'dev';
 
@@ -16,11 +18,60 @@ class database {
     async initStore() {
         if (!this.initialized) {
             const userDataPath = await ipcRenderer.invoke('path-user-data');
-            this.store = new Store({
-                name: 'launcher-data',
-                cwd: `${userDataPath}${dev ? '/..' : '/databases'}`,
-                encryptionKey: dev ? undefined : 'selvania-launcher-key',
-            });
+
+            const cwd = path.join(userDataPath, dev ? '..' : 'databases');
+            try {
+                if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
+            } catch (_) {
+                // If directory creation fails, electron-store will throw later; keep behavior consistent.
+            }
+
+            const storeName = 'launcher-data';
+
+            // In production we encrypt. If an older version wrote an unencrypted JSON,
+            // electron-store/conf will fail to decrypt and can appear as if the DB was wiped.
+            // We try to migrate legacy unencrypted data once.
+            if (!dev) {
+                try {
+                    const encryptedStore = new Store({
+                        name: storeName,
+                        cwd,
+                        encryptionKey: 'selvania-launcher-key',
+                    });
+                    // Force load now to catch decrypt/parse errors early.
+                    void encryptedStore.store;
+                    this.store = encryptedStore;
+                } catch (err) {
+                    try {
+                        const legacyStore = new Store({ name: storeName, cwd });
+                        const legacyData = legacyStore.store;
+
+                        const encryptedStore = new Store({
+                            name: storeName,
+                            cwd,
+                            encryptionKey: 'selvania-launcher-key',
+                        });
+
+                        if (legacyData && typeof legacyData === 'object' && Object.keys(legacyData).length > 0) {
+                            for (const [key, value] of Object.entries(legacyData)) {
+                                encryptedStore.set(key, value);
+                            }
+                        }
+
+                        this.store = encryptedStore;
+                    } catch (_) {
+                        // Last resort: start fresh encrypted store
+                        this.store = new Store({
+                            name: storeName,
+                            cwd,
+                            encryptionKey: 'selvania-launcher-key',
+                        });
+                    }
+                }
+            } else {
+                this.store = new Store({ name: storeName, cwd });
+            }
+
             this.initialized = true;
         }
         return this.store;
