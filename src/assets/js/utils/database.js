@@ -66,6 +66,13 @@ class database {
                 }
             }
 
+            // Ensure folder exists (both dev and prod)
+            try {
+                if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
+            } catch (_) {
+                // If directory creation fails, electron-store will throw later; keep behavior consistent.
+            }
+
             try {
                 const existsBefore = fs.existsSync(storePath);
                 const sizeBefore = existsBefore ? fs.statSync(storePath).size : 0;
@@ -76,54 +83,57 @@ class database {
             } catch (e) {
                 console.warn('[DB] preflight stat failed', e);
             }
-            try {
-                if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
-            } catch (_) {
-                // If directory creation fails, electron-store will throw later; keep behavior consistent.
-            }
 
-            // In production we encrypt. If an older version wrote an unencrypted JSON,
-            // electron-store/conf will fail to decrypt and can appear as if the DB was wiped.
-            // We try to migrate legacy unencrypted data once.
+            // Store init
             if (!dev) {
+                const encryptionKey = 'selvania-launcher-key';
+
+                // If the file is plaintext JSON (older builds), migrate it to encrypted store safely.
                 try {
-                    const encryptedStore = new Store({
-                        name: storeName,
-                        cwd,
-                        encryptionKey: 'selvania-launcher-key',
-                    });
-                    // Force load now to catch decrypt/parse errors early.
-                    void encryptedStore.store;
-                    this.store = encryptedStore;
-                } catch (err) {
-                    console.warn('[DB] encrypted store failed to load, trying legacy migration', err);
-                    try {
-                        const legacyStore = new Store({ name: storeName, cwd });
-                        const legacyData = legacyStore.store;
+                    if (fs.existsSync(storePath)) {
+                        const firstByte = fs.readFileSync(storePath, { encoding: 'utf8', flag: 'r' }).trimStart()[0];
+                        if (firstByte === '{') {
+                            const legacyJson = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+                            const backupPath = path.join(cwd, `${storeName}.legacy.${Date.now()}.json`);
+                            fs.copyFileSync(storePath, backupPath);
 
-                        const encryptedStore = new Store({
-                            name: storeName,
-                            cwd,
-                            encryptionKey: 'selvania-launcher-key',
-                        });
-
-                        if (legacyData && typeof legacyData === 'object' && Object.keys(legacyData).length > 0) {
-                            for (const [key, value] of Object.entries(legacyData)) {
+                            // Create encrypted store and copy keys
+                            const encryptedStore = new Store({ name: storeName, cwd, encryptionKey });
+                            for (const [key, value] of Object.entries(legacyJson || {})) {
                                 encryptedStore.set(key, value);
                             }
+                            this.store = encryptedStore;
+                            console.log(`[DB] migrated plaintext store -> encrypted (backup: ${backupPath})`);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[DB] plaintext migration failed (will try encrypted open)', e);
+                }
+
+                if (!this.store) {
+                    // Open encrypted store. If it fails, backup the file before recreating.
+                    try {
+                        const encryptedStore = new Store({ name: storeName, cwd, encryptionKey });
+                        void encryptedStore.store;
+                        this.store = encryptedStore;
+                    } catch (e) {
+                        try {
+                            if (fs.existsSync(storePath)) {
+                                const brokenPath = path.join(cwd, `${storeName}.broken.${Date.now()}.json`);
+                                fs.renameSync(storePath, brokenPath);
+                                console.warn(`[DB] store unreadable, backed up to ${brokenPath}`);
+                            }
+                        } catch (backupErr) {
+                            console.warn('[DB] failed to backup broken store', backupErr);
                         }
 
-                        this.store = encryptedStore;
-                    } catch (_) {
-                        // Last resort: start fresh encrypted store
-                        this.store = new Store({
-                            name: storeName,
-                            cwd,
-                            encryptionKey: 'selvania-launcher-key',
-                        });
+                        // Create a fresh encrypted store
+                        const freshStore = new Store({ name: storeName, cwd, encryptionKey });
+                        this.store = freshStore;
                     }
                 }
             } else {
+                // Dev: unencrypted and stored in ./data (one level above ./data/Launcher)
                 this.store = new Store({ name: storeName, cwd });
             }
 

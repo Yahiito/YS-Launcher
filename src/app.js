@@ -23,6 +23,17 @@ const MainWindow = require("./assets/js/windows/mainWindow.js");
 
 let dev = process.env.NODE_ENV === "dev";
 
+// Keep a stable storage location across builds.
+// Otherwise, changing the Electron app name/productName can change %APPDATA% subfolder
+// and it looks like the database was "deleted".
+if (!dev) {
+  const stableFolderName = "YS-Launcher";
+  const roaming = app.getPath("appData");
+  const stableUserData = path.join(roaming, stableFolderName);
+  if (!fs.existsSync(stableUserData)) fs.mkdirSync(stableUserData, { recursive: true });
+  app.setPath("userData", stableUserData);
+}
+
 if (dev) {
   let appPath = path.resolve("./data/Launcher").replace(/\\/g, "/");
   let appdata = path.resolve("./data").replace(/\\/g, "/");
