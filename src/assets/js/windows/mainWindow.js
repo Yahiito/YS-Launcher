@@ -3,7 +3,7 @@
  * Luuxis License v1.0 (voir fichier LICENSE pour les détails en FR/EN)
  */
 
-const { app, BrowserWindow, Menu } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain } = require("electron");
 const path = require("path");
 const os = require("os");
 const pkg = require("../../../../package.json");
@@ -77,6 +77,13 @@ function createWindow() {
         }
     });
 }
+
+// Listener to refresh the main window
+ipcMain.on('reload-main-window', () => {
+  if (mainWindow) {
+    mainWindow.reload();
+  }
+});
 
 module.exports = {
     getWindow,

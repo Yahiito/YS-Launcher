@@ -56,7 +56,11 @@ class Login {
             return;
           } else {
             await this.saveData(account_connect);
+            // Save the connection persistently
+            await this.db.updateData('accounts', account_connect, account_connect.ID);
             popupLogin.closePopup();
+            // Refresh the launcher after successful login
+            ipcRenderer.send('reload-main-window');
           }
         })
         .catch((err) => {
