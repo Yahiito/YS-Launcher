@@ -46,8 +46,9 @@ class Launcher {
     if (await this.config.error) return this.errorConnect();
     this.db = new database();
     await this.initConfigClient();
+    await this.initializeTheme();
     this.createPanels(Login, Home, Settings);
-    this.startLauncher();
+    await this.startLauncher();
   }
 
   initLog() {
@@ -156,61 +157,55 @@ class Launcher {
   async startLauncher() {
     try {
       const configClient = await this.db.readData("configClient");
-      // Récupère tous les comptes locaux
       const allAccounts = await this.db.readAllData("accounts");
-      let connectedAccounts = [];
-      for (const acc of allAccounts) {
-        if (acc.username && acc.password) {
-          try {
-            // Tente une connexion automatique au site web
-            const response = await fetch("https://lapepterie.com/Minecraft/auth.php", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ username: acc.username, password: acc.password }),
-              credentials: "include"
-            });
-            const data = await response.json();
-            if (data && data.username) {
-              connectedAccounts.push(acc);
-              // Optionnel : mettre à jour la session locale si besoin
-            }
-          } catch (e) {
-            console.warn("[YS-Launcher]: Connexion auto échouée pour", acc.username, e);
-          }
-        }
-        new logger(pkg.name, '#7289da')
-    }
 
-    // ...existing code...
-      // Si au moins un compte connecté, sélectionne le premier
-      if (connectedAccounts.length > 0) {
-        const account = connectedAccounts[0];
-        // Ajoute le compte à l'UI (liste comptes paramètre)
-        if (typeof addAccount === "function") {
-          addAccount(account);
-        }
-        if (typeof accountSelect === "function") {
-          try {
-            await accountSelect(account);
-          } catch (e) {
-            console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
-          }
-        }
-        // ...lance le jeu ou la home comme avant...
-        const username = account.name || account.username || "OfflineUser";
-        if (typeof this.launchOffline === "function") {
-          await this.launchOffline({
-            type: "offline",
-            username,
-            version: this.config?.version || "1.20.1",
-          });
-        } else {
-          changePanel("home");
-        }
+      if (!Array.isArray(allAccounts) || allAccounts.length === 0) {
+        changePanel("login");
         return;
       }
-      // Sinon, panel login
-      changePanel("login");
+
+      // Populate UI list (settings accounts list)
+      if (typeof addAccount === "function") {
+        for (const account of allAccounts) addAccount(account);
+      }
+
+      const selectedIdRaw = configClient?.account_selected;
+      const selectedId = selectedIdRaw != null ? Number(selectedIdRaw) : NaN;
+      const selectedAccount =
+        (!Number.isNaN(selectedId)
+          ? allAccounts.find((a) => Number(a.ID) === selectedId)
+          : null) || allAccounts[0];
+
+      // Best-effort: refresh website session for offline accounts
+      const loginName = selectedAccount?.username || selectedAccount?.name;
+      if (loginName && selectedAccount?.password) {
+        try {
+          await fetch("https://lapepterie.com/Minecraft/auth.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: loginName, password: selectedAccount.password }),
+            credentials: "include",
+          });
+        } catch (e) {
+          console.warn("[YS-Launcher]: Connexion auto (session web) échouée:", e);
+        }
+      }
+
+      if (typeof accountSelect === "function") {
+        try {
+          await accountSelect(selectedAccount);
+        } catch (e) {
+          console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
+        }
+      }
+
+      // Ensure selected account is persisted
+      if (configClient && selectedAccount?.ID != null) {
+        configClient.account_selected = selectedAccount.ID;
+        await this.db.updateData("configClient", configClient);
+      }
+
+      changePanel("home");
     } catch (err) {
       console.error("[YS-Launcher]: Erreur startLauncher:", err);
       changePanel("login");
@@ -218,13 +213,15 @@ class Launcher {
   }
 
   // Added a new method to handle theme initialization
-  initializeTheme() {
-    document.addEventListener('DOMContentLoaded', async () => {
-        let configClient = await this.db.readData('configClient');
-        let theme = configClient?.launcher_config?.theme || "auto";
-        let isDarkTheme = await ipcRenderer.invoke('is-dark-theme', theme).then(res => res);
-        document.body.className = isDarkTheme ? 'dark global' : 'light global';
-    });
+  async initializeTheme() {
+    try {
+      const configClient = await this.db.readData("configClient");
+      const theme = configClient?.launcher_config?.theme || "auto";
+      const isDarkTheme = await ipcRenderer.invoke("is-dark-theme", theme);
+      document.body.className = isDarkTheme ? "dark global" : "light global";
+    } catch (e) {
+      // Keep default styling if anything fails
+    }
   }
 }
 

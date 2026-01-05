@@ -52,7 +52,7 @@ class Settings {
           .querySelector("#account-tab")
           .classList.add("active-container-settings");
 
-        window.location.reload();
+        changePanel("home");
         return;
       }
 
@@ -171,7 +171,7 @@ class Settings {
 
     if (totalMem < ram.ramMin) {
       config.java_config.java_memory = { min: 1, max: 2 };
-      this.db.updateData("configClient", config);
+      await this.db.updateData("configClient", config);
       ram = { ramMin: "1", ramMax: "2" };
     }
 
@@ -192,7 +192,7 @@ class Settings {
       minSpan.setAttribute("value", `${min} Go`);
       maxSpan.setAttribute("value", `${max} Go`);
       config.java_config.java_memory = { min: min, max: max };
-      this.db.updateData("configClient", config);
+      await this.db.updateData("configClient", config);
     });
   }
 
@@ -417,7 +417,7 @@ class Settings {
           if (data.success) {
             // Met à jour le skin localement
             account.skin = data.filename;
-            await this.db.updateData("accounts", account.ID, account);
+            await this.db.updateData("accounts", account, account.ID);
             this.updateSkinViewer();
           } else {
             alert("Erreur upload skin: " + (data.error || ""));
