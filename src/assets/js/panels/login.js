@@ -388,6 +388,9 @@ class Login {
       connectionData.password = connectionData.password;
     }
     let configClient = await this.db.readData("configClient");
+
+    // Un seul compte autorisé: on remplace l'ancien (vide la table avant d'ajouter)
+    await this.db.clearTable("accounts");
     let account = await this.db.createData("accounts", connectionData);
     // Correction du nom de la clé pour la sélection d'instance
     let instanceSelect = configClient.instance_select || configClient.instance_selct;

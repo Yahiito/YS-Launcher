@@ -100,24 +100,16 @@ class Settings {
               content: "Veuillez patienter...",
               color: "var(--color)",
             });
-            await this.db.deleteData("accounts", id);
-            let deleteProfile = document.getElementById(`${id}`);
-            let accountListElement = document.querySelector(".accounts-list");
-            accountListElement.removeChild(deleteProfile);
 
-            if (accountListElement.children.length == 1)
-              return changePanel("login");
-
+            // Déconnexion = aucun compte conservé
+            await this.db.clearTable("accounts");
             let configClient = await this.db.readData("configClient");
-
-            if (configClient.account_selected == id) {
-              let allAccounts = await this.db.readAllData("accounts");
-              configClient.account_selected = allAccounts[0].ID;
-              accountSelect(allAccounts[0]);
-              let newInstanceSelect = await this.setInstance(allAccounts[0]);
-              configClient.instance_select = newInstanceSelect.instance_select;
-              return await this.db.updateData("configClient", configClient);
+            if (configClient) {
+              configClient.account_selected = null;
+              await this.db.updateData("configClient", configClient);
             }
+
+            return changePanel("login");
           }
         } catch (err) {
           console.error(err);

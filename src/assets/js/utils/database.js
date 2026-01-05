@@ -78,6 +78,11 @@ class database {
         tableData = tableData.filter(item => item.ID !== key);
         this.store.set(tableName, tableData);
     }
+
+    async clearTable(tableName) {
+        await this.initStore();
+        this.store.set(tableName, []);
+    }
 }
 
 export default database;

@@ -23,8 +23,18 @@ class Home {
     this.db = new database();
     this.news();
     this.socialLick();
+    this.settingsBtn();
     this.instancesSelect();
     await this.showWelcomeMessage();
+  }
+
+  settingsBtn() {
+    const settingsBtn = document.querySelector(".settings-btn");
+    if (!settingsBtn) return;
+
+    settingsBtn.addEventListener("click", () => {
+      changePanel("settings");
+    });
   }
 
   async news() {
