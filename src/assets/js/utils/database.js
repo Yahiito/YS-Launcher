@@ -23,6 +23,49 @@ class database {
             const storeName = 'launcher-data';
             const storePath = path.join(cwd, `${storeName}.json`);
 
+            // If the app name/userData folder changed between builds (e.g. YS-Launcher vs ys-launcher),
+            // the DB will look "deleted" because it's actually in a different Roaming folder.
+            // When the target file doesn't exist yet, try to copy it from common legacy locations.
+            if (!dev) {
+                try {
+                    if (!fs.existsSync(storePath)) {
+                        const roaming = process.env.APPDATA;
+                        if (roaming) {
+                            const candidateUserDataFolders = [
+                                'YS-Launcher',
+                                'ys-launcher',
+                                'Y&S Launcher',
+                                '.YS-Launcher',
+                            ];
+
+                            const candidates = candidateUserDataFolders
+                                .map((folder) => path.join(roaming, folder, 'databases', `${storeName}.json`))
+                                .filter((p) => p.toLowerCase() !== storePath.toLowerCase());
+
+                            const source = candidates.find((p) => {
+                                try {
+                                    return fs.existsSync(p) && fs.statSync(p).size > 0;
+                                } catch {
+                                    return false;
+                                }
+                            });
+
+                            if (source) {
+                                try {
+                                    if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
+                                    fs.copyFileSync(source, storePath);
+                                    console.log(`[DB] migrated store from ${source} -> ${storePath}`);
+                                } catch (e) {
+                                    console.warn('[DB] migration copy failed', e);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[DB] migration check failed', e);
+                }
+            }
+
             try {
                 const existsBefore = fs.existsSync(storePath);
                 const sizeBefore = existsBefore ? fs.statSync(storePath).size : 0;
