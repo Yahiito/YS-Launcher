@@ -1,11 +1,11 @@
-// Ce module supprime le dossier %appdata%/.YS-Launcher/assets/skins au lancement du launcher
+// Ce module supprime le dossier <userData>/assets/skins au lancement du launcher
+// (cache uniquement, ne touche pas la base de données).
 const fs = require('fs-extra');
 const path = require('path');
 
-function deleteSkinsFolder() {
-    const appData = process.env.APPDATA;
-    if (!appData) return;
-    const skinsPath = path.join(appData, '.YS-Launcher', 'assets', 'skins');
+function deleteSkinsFolder(userDataPath) {
+    if (!userDataPath) return;
+    const skinsPath = path.join(userDataPath, 'assets', 'skins');
     fs.remove(skinsPath, err => {
         if (err) {
             console.error('Erreur lors de la suppression du dossier skins:', err);

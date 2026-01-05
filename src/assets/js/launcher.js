@@ -154,61 +154,140 @@ class Launcher {
   }
 
   async startLauncher() {
-    try {
-      const configClient = await this.db.readData("configClient");
-      const allAccounts = await this.db.readAllData("accounts");
+    let accounts = await this.db.readAllData("accounts");
+    let configClient = await this.db.readData("configClient");
+    let accountSelected = configClient ? configClient.account_selected : null;
+    let popupRefresh = new popup();
 
-      if (!Array.isArray(allAccounts) || allAccounts.length === 0) {
-        changePanel("login");
-        return;
-      }
+    if (accounts?.length) {
+      for (let account of accounts) {
+        const accountID = account.ID;
 
-      // Populate UI list (settings accounts list)
-      if (typeof addAccount === "function") {
-        for (const account of allAccounts) addAccount(account);
-      }
+        if (account?.error) {
+          await this.db.deleteData("accounts", accountID);
+          continue;
+        }
 
-      const selectedIdRaw = configClient?.account_selected;
-      const selectedId = selectedIdRaw != null ? Number(selectedIdRaw) : NaN;
-      const selectedAccount =
-        (!Number.isNaN(selectedId)
-          ? allAccounts.find((a) => Number(a.ID) === selectedId)
-          : null) || allAccounts[0];
+        const type = account?.meta?.type;
 
-      // Best-effort: refresh website session for offline accounts
-      const loginName = selectedAccount?.username || selectedAccount?.name;
-      if (loginName && selectedAccount?.password) {
-        try {
-          await fetch("https://lapepterie.com/Minecraft/auth.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: loginName, password: selectedAccount.password }),
-            credentials: "include",
+        // Keep compatibility with upstream account types
+        if (type === "Xbox") {
+          popupRefresh.openPopup({
+            title: "Connexion",
+            content: `Refresh account Type: ${type} | Username: ${account.name}`,
+            color: "var(--color)",
+            background: false,
           });
-        } catch (e) {
-          console.warn("[YS-Launcher]: Connexion auto (session web) échouée:", e);
+
+          const refreshed = await new Microsoft(this.config.client_id).refresh(account);
+          if (refreshed?.error) {
+            await this.db.deleteData("accounts", accountID);
+            if (accountID == accountSelected) {
+              configClient.account_selected = null;
+              await this.db.updateData("configClient", configClient);
+            }
+            continue;
+          }
+
+          refreshed.ID = accountID;
+          await this.db.updateData("accounts", refreshed, accountID);
+          await addAccount(refreshed);
+          if (accountID == accountSelected) accountSelect(refreshed);
+          continue;
+        }
+
+        if (type === "AZauth") {
+          popupRefresh.openPopup({
+            title: "Connexion",
+            content: `Refresh account Type: ${type} | Username: ${account.name}`,
+            color: "var(--color)",
+            background: false,
+          });
+
+          const refreshed = await new AZauth(this.config.online).verify(account);
+          if (refreshed?.error) {
+            await this.db.deleteData("accounts", accountID);
+            if (accountID == accountSelected) {
+              configClient.account_selected = null;
+              await this.db.updateData("configClient", configClient);
+            }
+            continue;
+          }
+
+          refreshed.ID = accountID;
+          await this.db.updateData("accounts", refreshed, accountID);
+          await addAccount(refreshed);
+          if (accountID == accountSelected) accountSelect(refreshed);
+          continue;
+        }
+
+        if (type === "Mojang") {
+          popupRefresh.openPopup({
+            title: "Connexion",
+            content: `Refresh account Type: ${type} | Username: ${account.name}`,
+            color: "var(--color)",
+            background: false,
+          });
+
+          let refreshed;
+          if (account?.meta?.online === false) {
+            refreshed = await Mojang.login(account.name);
+          } else {
+            refreshed = await Mojang.refresh(account);
+          }
+
+          if (refreshed?.error) {
+            await this.db.deleteData("accounts", accountID);
+            if (accountID == accountSelected) {
+              configClient.account_selected = null;
+              await this.db.updateData("configClient", configClient);
+            }
+            continue;
+          }
+
+          refreshed.ID = accountID;
+          await this.db.updateData("accounts", refreshed, accountID);
+          await addAccount(refreshed);
+          if (accountID == accountSelected) accountSelect(refreshed);
+          continue;
+        }
+
+        // Your website/offline accounts: just load them, no refresh required.
+        if (type === "offline") {
+          await addAccount(account);
+          if (accountID == accountSelected) accountSelect(account);
+          continue;
+        }
+
+        // Unknown type -> cleanup
+        await this.db.deleteData("accounts", accountID);
+        if (accountID == accountSelected) {
+          configClient.account_selected = null;
+          await this.db.updateData("configClient", configClient);
         }
       }
 
-      if (typeof accountSelect === "function") {
-        try {
-          await accountSelect(selectedAccount);
-        } catch (e) {
-          console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
-        }
-      }
+      accounts = await this.db.readAllData("accounts");
+      configClient = await this.db.readData("configClient");
+      accountSelected = configClient ? configClient.account_selected : null;
 
-      // Ensure selected account is persisted
-      if (configClient && selectedAccount?.ID != null) {
-        configClient.account_selected = selectedAccount.ID;
+      if (!accountSelected && accounts.length) {
+        configClient.account_selected = accounts[0].ID;
         await this.db.updateData("configClient", configClient);
+        accountSelect(accounts[0]);
       }
 
-      changePanel("home");
-    } catch (err) {
-      console.error("[YS-Launcher]: Erreur startLauncher:", err);
-      changePanel("login");
+      if (!accounts.length) {
+        popupRefresh.closePopup();
+        return changePanel("login");
+      }
+
+      popupRefresh.closePopup();
+      return changePanel("home");
     }
+
+    popupRefresh.closePopup();
+    return changePanel("login");
   }
 
   // Added a new method to handle theme initialization

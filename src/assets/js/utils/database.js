@@ -15,6 +15,44 @@ class database {
         this.initialized = false;
     }
 
+    normalizeTable(tableName, tableData) {
+        if (Array.isArray(tableData)) return tableData;
+        if (!tableData || typeof tableData !== 'object') return [];
+
+        // Common legacy case: configClient stored as a plain object
+        if (tableName === 'configClient') {
+            const obj = { ...tableData };
+            if (obj.ID == null) obj.ID = 1;
+            return [obj];
+        }
+
+        // Common legacy case: stored as an object keyed by IDs
+        const entries = Object.entries(tableData);
+        const looksLikeIdMap = entries.length > 0 && entries.every(([k, v]) => !Number.isNaN(Number(k)) && v && typeof v === 'object');
+        if (looksLikeIdMap) {
+            return entries
+                .map(([k, v]) => {
+                    const obj = { ...v };
+                    if (obj.ID == null) obj.ID = Number(k);
+                    return obj;
+                })
+                .sort((a, b) => (Number(a.ID) || 0) - (Number(b.ID) || 0));
+        }
+
+        return [];
+    }
+
+    async getTable(tableName) {
+        await this.initStore();
+        const raw = this.store.get(tableName, []);
+        const normalized = this.normalizeTable(tableName, raw);
+        if (raw !== normalized && !Array.isArray(raw)) {
+            // Persist migration for next runs
+            this.store.set(tableName, normalized);
+        }
+        return normalized;
+    }
+
     async initStore() {
         if (!this.initialized) {
             const userDataPath = await ipcRenderer.invoke('path-user-data');
@@ -155,8 +193,7 @@ class database {
     }
 
     async createData(tableName, data) {
-        await this.initStore();
-        let tableData = this.store.get(tableName, []);
+        let tableData = await this.getTable(tableName);
 
         // Générer un nouvel ID
         const maxId = tableData.length > 0
@@ -172,20 +209,17 @@ class database {
     }
 
     async readData(tableName, key = 1) {
-        await this.initStore();
-        let tableData = this.store.get(tableName, []);
+        let tableData = await this.getTable(tableName);
         let data = tableData.find(item => item.ID === key);
         return data ? data : undefined;
     }
 
     async readAllData(tableName) {
-        await this.initStore();
-        return this.store.get(tableName, []);
+        return await this.getTable(tableName);
     }
 
     async updateData(tableName, data, key = 1) {
-        await this.initStore();
-        let tableData = this.store.get(tableName, []);
+        let tableData = await this.getTable(tableName);
         const index = tableData.findIndex(item => item.ID === key);
 
         if (index !== -1) {
@@ -201,8 +235,7 @@ class database {
     }
 
     async deleteData(tableName, key = 1) {
-        await this.initStore();
-        let tableData = this.store.get(tableName, []);
+        let tableData = await this.getTable(tableName);
         tableData = tableData.filter(item => item.ID !== key);
         this.store.set(tableName, tableData);
     }
