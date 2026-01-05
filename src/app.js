@@ -147,3 +147,22 @@ autoUpdater.on("error", (err) => {
   const updateWindow = UpdateWindow.getWindow();
   if (updateWindow) updateWindow.webContents.send("error", err);
 });
+
+app.on('before-quit', async () => {
+  const db = new (require('./assets/js/utils/database'))();
+  const configClient = await db.readData('configClient');
+
+  if (configClient) {
+    configClient.lastClosed = new Date().toISOString();
+    await db.updateData('configClient', configClient);
+  }
+
+  const accounts = await db.readAllData('accounts');
+  if (accounts && accounts.length > 0) {
+    const activeAccount = accounts.find(acc => acc.ID === configClient.account_selected);
+    if (activeAccount) {
+      activeAccount.lastOnline = new Date().toISOString();
+      await db.updateData('accounts', activeAccount, activeAccount.ID);
+    }
+  }
+});

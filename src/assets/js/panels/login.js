@@ -420,6 +420,10 @@ class Login {
       }
     }
 
+    // Save the connection state persistently
+    connectionData.lastOnline = new Date().toISOString();
+    await this.db.updateData('accounts', connectionData, account.ID);
+
     await this.db.updateData("configClient", configClient);
     await addAccount(account);
     await accountSelect(account);
