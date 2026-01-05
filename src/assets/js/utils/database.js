@@ -19,7 +19,8 @@ class database {
         if (!this.initialized) {
             const userDataPath = await ipcRenderer.invoke('path-user-data');
 
-            const cwd = path.join(userDataPath, dev ? '..' : 'databases');
+            // Always store in a stable folder inside userData, so dev/prod behave the same.
+            const cwd = path.join(userDataPath, 'databases');
             const storeName = 'launcher-data';
             const storePath = path.join(cwd, `${storeName}.json`);
 
@@ -84,57 +85,60 @@ class database {
                 console.warn('[DB] preflight stat failed', e);
             }
 
-            // Store init
-            if (!dev) {
-                const encryptionKey = 'selvania-launcher-key';
+            // Store init (always encrypted so behavior is consistent in dev/prod)
+            const encryptionKey = 'selvania-launcher-key';
 
-                // If the file is plaintext JSON (older builds), migrate it to encrypted store safely.
-                try {
-                    if (fs.existsSync(storePath)) {
-                        const firstByte = fs.readFileSync(storePath, { encoding: 'utf8', flag: 'r' }).trimStart()[0];
-                        if (firstByte === '{') {
-                            const legacyJson = JSON.parse(fs.readFileSync(storePath, 'utf8'));
-                            const backupPath = path.join(cwd, `${storeName}.legacy.${Date.now()}.json`);
-                            fs.copyFileSync(storePath, backupPath);
+            // If the file is plaintext JSON (older builds), migrate it to encrypted store safely.
+            try {
+                if (fs.existsSync(storePath)) {
+                    const firstByte = fs.readFileSync(storePath, { encoding: 'utf8', flag: 'r' }).trimStart()[0];
+                    if (firstByte === '{') {
+                        const legacyJson = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+                        const backupPath = path.join(cwd, `${storeName}.legacy.${Date.now()}.json`);
+                        fs.copyFileSync(storePath, backupPath);
 
-                            // Create encrypted store and copy keys
-                            const encryptedStore = new Store({ name: storeName, cwd, encryptionKey });
-                            for (const [key, value] of Object.entries(legacyJson || {})) {
-                                encryptedStore.set(key, value);
-                            }
-                            this.store = encryptedStore;
-                            console.log(`[DB] migrated plaintext store -> encrypted (backup: ${backupPath})`);
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[DB] plaintext migration failed (will try encrypted open)', e);
-                }
-
-                if (!this.store) {
-                    // Open encrypted store. If it fails, backup the file before recreating.
-                    try {
+                        // Create encrypted store and copy keys
                         const encryptedStore = new Store({ name: storeName, cwd, encryptionKey });
-                        void encryptedStore.store;
-                        this.store = encryptedStore;
-                    } catch (e) {
-                        try {
-                            if (fs.existsSync(storePath)) {
-                                const brokenPath = path.join(cwd, `${storeName}.broken.${Date.now()}.json`);
-                                fs.renameSync(storePath, brokenPath);
-                                console.warn(`[DB] store unreadable, backed up to ${brokenPath}`);
-                            }
-                        } catch (backupErr) {
-                            console.warn('[DB] failed to backup broken store', backupErr);
+                        for (const [key, value] of Object.entries(legacyJson || {})) {
+                            encryptedStore.set(key, value);
                         }
-
-                        // Create a fresh encrypted store
-                        const freshStore = new Store({ name: storeName, cwd, encryptionKey });
-                        this.store = freshStore;
+                        this.store = encryptedStore;
+                        console.log(`[DB] migrated plaintext store -> encrypted (backup: ${backupPath})`);
                     }
                 }
-            } else {
-                // Dev: unencrypted and stored in ./data (one level above ./data/Launcher)
-                this.store = new Store({ name: storeName, cwd });
+            } catch (e) {
+                console.warn('[DB] plaintext migration failed (will try encrypted open)', e);
+            }
+
+            if (!this.store) {
+                // Open encrypted store. If it fails, backup the file before recreating.
+                try {
+                    const encryptedStore = new Store({ name: storeName, cwd, encryptionKey });
+                    void encryptedStore.store;
+                    this.store = encryptedStore;
+                } catch (e) {
+                    try {
+                        if (fs.existsSync(storePath)) {
+                            const brokenPath = path.join(cwd, `${storeName}.broken.${Date.now()}.json`);
+                            fs.renameSync(storePath, brokenPath);
+                            console.warn(`[DB] store unreadable, backed up to ${brokenPath}`);
+                        }
+                    } catch (backupErr) {
+                        console.warn('[DB] failed to backup broken store', backupErr);
+                    }
+
+                    // Create a fresh encrypted store
+                    const freshStore = new Store({ name: storeName, cwd, encryptionKey });
+                    this.store = freshStore;
+                }
+            }
+
+            // Force file creation once so the store exists immediately on disk.
+            try {
+                const existingBootstrap = this.store.get('__bootstrap');
+                if (!existingBootstrap) this.store.set('__bootstrap', Date.now());
+            } catch (_) {
+                // Ignore bootstrap failures
             }
 
             try {

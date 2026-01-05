@@ -37,7 +37,6 @@ class Launcher {
     console.log("Étape 4 : Cadre de la fenêtre initialisé.");
     this.initFrame();
     console.log("Étape 5 : Thème initialisé.");
-    this.initializeTheme();
     console.log("Étape 6 : Configuration chargée.");
     this.config = await config
       .GetConfig()
