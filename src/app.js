@@ -50,6 +50,7 @@ ipcMain.on("main-window-dev-tools-close", () =>
 );
 ipcMain.on("main-window-close", () => MainWindow.destroyWindow());
 ipcMain.on("main-window-reload", () => MainWindow.getWindow().reload());
+ipcMain.on("reload-main-window", () => MainWindow.getWindow().reload());
 ipcMain.on("main-window-progress", (event, options) =>
   MainWindow.getWindow().setProgressBar(options.progress / options.size)
 );

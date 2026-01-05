@@ -20,13 +20,24 @@ class database {
             const userDataPath = await ipcRenderer.invoke('path-user-data');
 
             const cwd = path.join(userDataPath, dev ? '..' : 'databases');
+            const storeName = 'launcher-data';
+            const storePath = path.join(cwd, `${storeName}.json`);
+
+            try {
+                const existsBefore = fs.existsSync(storePath);
+                const sizeBefore = existsBefore ? fs.statSync(storePath).size : 0;
+                console.log(`[DB] userDataPath=${userDataPath}`);
+                console.log(`[DB] cwd=${cwd}`);
+                console.log(`[DB] storePath=${storePath}`);
+                console.log(`[DB] existsBefore=${existsBefore} sizeBefore=${sizeBefore}`);
+            } catch (e) {
+                console.warn('[DB] preflight stat failed', e);
+            }
             try {
                 if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
             } catch (_) {
                 // If directory creation fails, electron-store will throw later; keep behavior consistent.
             }
-
-            const storeName = 'launcher-data';
 
             // In production we encrypt. If an older version wrote an unencrypted JSON,
             // electron-store/conf will fail to decrypt and can appear as if the DB was wiped.
@@ -42,6 +53,7 @@ class database {
                     void encryptedStore.store;
                     this.store = encryptedStore;
                 } catch (err) {
+                    console.warn('[DB] encrypted store failed to load, trying legacy migration', err);
                     try {
                         const legacyStore = new Store({ name: storeName, cwd });
                         const legacyData = legacyStore.store;
@@ -70,6 +82,14 @@ class database {
                 }
             } else {
                 this.store = new Store({ name: storeName, cwd });
+            }
+
+            try {
+                const existsAfter = fs.existsSync(storePath);
+                const sizeAfter = existsAfter ? fs.statSync(storePath).size : 0;
+                console.log(`[DB] existsAfter=${existsAfter} sizeAfter=${sizeAfter}`);
+            } catch (e) {
+                console.warn('[DB] postflight stat failed', e);
             }
 
             this.initialized = true;
