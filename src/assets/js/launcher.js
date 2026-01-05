@@ -158,55 +158,58 @@ class Launcher {
       const configClient = await this.db.readData("configClient");
       // Récupère tous les comptes locaux
       const allAccounts = await this.db.readAllData("accounts");
-      const accounts = Array.isArray(allAccounts) ? allAccounts : [];
-
-      // Si on a déjà un compte sélectionné localement, on le reprend (même sans password).
-      let selectedAccount = null;
-      if (configClient?.account_selected) {
-        selectedAccount = accounts.find((a) => a.ID === configClient.account_selected) || null;
-      }
-      if (!selectedAccount && accounts.length > 0) selectedAccount = accounts[0];
-
-      // Hydrate la liste des comptes dans l'UI (settings) si disponible
-      if (typeof addAccount === "function") {
-        for (const acc of accounts) {
-          try { await addAccount(acc); } catch (_) {}
-        }
-      }
-
-      if (selectedAccount) {
-        // Si on a username+password, on tente l'auth web. Sinon on garde la session locale.
-        if (selectedAccount.username && selectedAccount.password) {
+      let connectedAccounts = [];
+      for (const acc of allAccounts) {
+        if (acc.username && acc.password) {
           try {
+            // Tente une connexion automatique au site web
             const response = await fetch("https://lapepterie.com/Minecraft/auth.php", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ username: selectedAccount.username, password: selectedAccount.password }),
-              credentials: "include",
+              body: JSON.stringify({ username: acc.username, password: acc.password }),
+              credentials: "include"
             });
             const data = await response.json();
-            if (!response.ok || data?.error) {
-              changePanel("login");
-              return;
+            if (data && data.username) {
+              connectedAccounts.push(acc);
+              // Optionnel : mettre à jour la session locale si besoin
             }
           } catch (e) {
-            console.warn("[YS-Launcher]: Connexion auto échouée pour", selectedAccount.username, e);
-            changePanel("login");
-            return;
+            console.warn("[YS-Launcher]: Connexion auto échouée pour", acc.username, e);
           }
         }
+        new logger(pkg.name, '#7289da')
+    }
 
+    // ...existing code...
+      // Si au moins un compte connecté, sélectionne le premier
+      if (connectedAccounts.length > 0) {
+        const account = connectedAccounts[0];
+        // Ajoute le compte à l'UI (liste comptes paramètre)
+        if (typeof addAccount === "function") {
+          addAccount(account);
+        }
         if (typeof accountSelect === "function") {
-          try { await accountSelect(selectedAccount); } catch (e) {
+          try {
+            await accountSelect(account);
+          } catch (e) {
             console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
           }
         }
-
-        changePanel("home");
+        // ...lance le jeu ou la home comme avant...
+        const username = account.name || account.username || "OfflineUser";
+        if (typeof this.launchOffline === "function") {
+          await this.launchOffline({
+            type: "offline",
+            username,
+            version: this.config?.version || "1.20.1",
+          });
+        } else {
+          changePanel("home");
+        }
         return;
       }
-
-      // Aucun compte local => panel login
+      // Sinon, panel login
       changePanel("login");
     } catch (err) {
       console.error("[YS-Launcher]: Erreur startLauncher:", err);

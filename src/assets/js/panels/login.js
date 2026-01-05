@@ -56,11 +56,7 @@ class Login {
             return;
           } else {
             await this.saveData(account_connect);
-            // Save the connection persistently
-            await this.db.updateData('accounts', account_connect, account_connect.ID);
             popupLogin.closePopup();
-            // Refresh the launcher after successful login
-            ipcRenderer.send('reload-main-window');
           }
         })
         .catch((err) => {
@@ -392,9 +388,6 @@ class Login {
       connectionData.password = connectionData.password;
     }
     let configClient = await this.db.readData("configClient");
-
-    // Un seul compte autorisé: on remplace l'ancien (vide la table avant d'ajouter)
-    await this.db.clearTable("accounts");
     let account = await this.db.createData("accounts", connectionData);
     // Correction du nom de la clé pour la sélection d'instance
     let instanceSelect = configClient.instance_select || configClient.instance_selct;
@@ -419,10 +412,6 @@ class Login {
         }
       }
     }
-
-    // Save the connection state persistently
-    connectionData.lastOnline = new Date().toISOString();
-    await this.db.updateData('accounts', connectionData, account.ID);
 
     await this.db.updateData("configClient", configClient);
     await addAccount(account);

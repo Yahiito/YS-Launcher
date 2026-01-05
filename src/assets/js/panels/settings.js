@@ -100,16 +100,24 @@ class Settings {
               content: "Veuillez patienter...",
               color: "var(--color)",
             });
+            await this.db.deleteData("accounts", id);
+            let deleteProfile = document.getElementById(`${id}`);
+            let accountListElement = document.querySelector(".accounts-list");
+            accountListElement.removeChild(deleteProfile);
 
-            // Déconnexion = aucun compte conservé
-            await this.db.clearTable("accounts");
+            if (accountListElement.children.length == 1)
+              return changePanel("login");
+
             let configClient = await this.db.readData("configClient");
-            if (configClient) {
-              configClient.account_selected = null;
-              await this.db.updateData("configClient", configClient);
-            }
 
-            return changePanel("login");
+            if (configClient.account_selected == id) {
+              let allAccounts = await this.db.readAllData("accounts");
+              configClient.account_selected = allAccounts[0].ID;
+              accountSelect(allAccounts[0]);
+              let newInstanceSelect = await this.setInstance(allAccounts[0]);
+              configClient.instance_select = newInstanceSelect.instance_select;
+              return await this.db.updateData("configClient", configClient);
+            }
           }
         } catch (err) {
           console.error(err);
@@ -425,6 +433,32 @@ class Settings {
     this.updateSkinViewer();
   }
 
+  async ensureSkinview3dLoaded() {
+    if (globalThis.skinview3d) return true;
+
+    if (!Settings._skinview3dLoadingPromise) {
+      Settings._skinview3dLoadingPromise = new Promise((resolve) => {
+        const existing = document.querySelector('script[data-skinview3d="true"]');
+        if (existing) {
+          existing.addEventListener("load", () => resolve(true), { once: true });
+          existing.addEventListener("error", () => resolve(false), { once: true });
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = "assets/js/utils/Skin/skinview3d.bundle.js";
+        script.async = true;
+        script.defer = true;
+        script.dataset.skinview3d = "true";
+        script.onload = () => resolve(Boolean(globalThis.skinview3d));
+        script.onerror = () => resolve(false);
+        document.head.appendChild(script);
+      });
+    }
+
+    return await Settings._skinview3dLoadingPromise;
+  }
+
   async getSelectedAccount() {
     const configClient = await this.db.readData("configClient");
     if (!configClient?.account_selected) return null;
@@ -436,6 +470,9 @@ class Settings {
     const filenameDiv = document.getElementById("skin-filename");
     if (!viewerDiv) return;
     viewerDiv.innerHTML = "";
+
+    await this.ensureSkinview3dLoaded();
+
     let account = await this.getSelectedAccount();
     let username = account && account.name ? account.name : null;
     let skinName = username ? username + ".png" : "Steve (défaut)";
@@ -462,8 +499,8 @@ class Settings {
         skinUrl = defaultSkinUrl;
       }
     }
-    if (window.skinview3d) {
-      const viewer = new skinview3d.SkinViewer({
+    if (globalThis.skinview3d) {
+      const viewer = new globalThis.skinview3d.SkinViewer({
         canvas: Object.assign(document.createElement("canvas"), {
           width: 220,
           height: 320,
@@ -476,10 +513,10 @@ class Settings {
       viewer.controls.enableRotate = true;
       // Compatibilité skinview3d v2 et v3+
       if (viewer.animations && typeof viewer.animations.add === "function") {
-        viewer.animations.add(new skinview3d.WalkingAnimation());
+        viewer.animations.add(new globalThis.skinview3d.WalkingAnimation());
         viewer.animations.play();
-      } else if (typeof skinview3d.WalkingAnimation === "function") {
-        viewer.animation = new skinview3d.WalkingAnimation();
+      } else if (typeof globalThis.skinview3d.WalkingAnimation === "function") {
+        viewer.animation = new globalThis.skinview3d.WalkingAnimation();
       }
     } else {
       viewerDiv.innerHTML = '<div style="color:red;text-align:center">Erreur : skinview3d non chargé</div>';

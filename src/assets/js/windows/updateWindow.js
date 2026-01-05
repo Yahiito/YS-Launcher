@@ -41,6 +41,7 @@ function createWindow() {
         webPreferences: {
             contextIsolation: false,
             nodeIntegration: true, // Required: renderer code uses require()
+            preload: path.resolve(__dirname, "../preload.js") // Use preload script if needed
         },
     });
 

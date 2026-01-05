@@ -23,15 +23,14 @@ class Home {
     this.db = new database();
     this.news();
     this.socialLick();
-    this.settingsBtn();
+    this.openSettings();
     this.instancesSelect();
     await this.showWelcomeMessage();
   }
 
-  settingsBtn() {
+  openSettings() {
     const settingsBtn = document.querySelector(".settings-btn");
     if (!settingsBtn) return;
-
     settingsBtn.addEventListener("click", () => {
       changePanel("settings");
     });
