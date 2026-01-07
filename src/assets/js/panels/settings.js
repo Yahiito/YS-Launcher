@@ -22,6 +22,7 @@ class Settings {
   async init(config) {
     this.config = config;
     this.db = new database();
+    this._skinview3dLoadingPromise = null;
     this.navBTN();
     this.accounts();
     this.ram();
@@ -29,6 +30,45 @@ class Settings {
     this.resolution();
     this.launcher();
     this.skinTab();
+  }
+
+  async ensureSkinview3dLoaded() {
+    if (window.skinview3d) return true;
+
+    if (this._skinview3dLoadingPromise) {
+      try {
+        await this._skinview3dLoadingPromise;
+        return !!window.skinview3d;
+      } catch {
+        return false;
+      }
+    }
+
+    const existing = document.querySelector('script[data-skinview3d="true"]');
+    if (existing) {
+      this._skinview3dLoadingPromise = new Promise((resolve, reject) => {
+        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("error", () => reject(new Error("skinview3d load error")));
+      });
+    } else {
+      this._skinview3dLoadingPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "assets/js/utils/Skin/skinview3d.bundle.js";
+        script.async = true;
+        script.dataset.skinview3d = "true";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("skinview3d load error"));
+        document.head.appendChild(script);
+      });
+    }
+
+    try {
+      await this._skinview3dLoadingPromise;
+      return !!window.skinview3d;
+    } catch (e) {
+      console.error("[YS-Launcher]: Impossible de charger skinview3d.bundle.js", e);
+      return false;
+    }
   }
 
   navBTN() {
@@ -378,7 +418,9 @@ class Settings {
   }
 
   async skinTab() {
-    // Suppression du chargement dynamique du CDN, on suppose que skinview3d est déjà inclus en local
+    // Le panel settings est injecté via innerHTML : les <script> dans settings.html ne s'exécutent pas.
+    // On charge donc skinview3d localement au runtime si nécessaire.
+    await this.ensureSkinview3dLoaded();
 
     // Gestion navigation onglet
     const skinTabBtn = document.getElementById("skin");
@@ -444,6 +486,14 @@ class Settings {
     const filenameDiv = document.getElementById("skin-filename");
     if (!viewerDiv) return;
     viewerDiv.innerHTML = "";
+
+    const skinview3dReady = await this.ensureSkinview3dLoaded();
+    if (!skinview3dReady) {
+      viewerDiv.innerHTML = '<div style="color:red;text-align:center">Erreur : skinview3d non chargé</div>';
+      if (filenameDiv) filenameDiv.textContent = "";
+      return;
+    }
+
     let account = await this.getSelectedAccount();
     let username = account && account.name ? account.name : null;
     let skinName = username ? username + ".png" : "Steve (défaut)";

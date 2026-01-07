@@ -23,6 +23,47 @@ const MainWindow = require("./assets/js/windows/mainWindow.js");
 
 let dev = process.env.NODE_ENV === "dev";
 
+function getLauncherDataPaths() {
+  const userDataPath = app.getPath("userData");
+  const dbDir = dev
+    ? path.resolve(userDataPath, "..")
+    : path.resolve(userDataPath, "databases");
+  const primaryFile = path.join(dbDir, "launcher-data.json");
+
+  // Backup hors du dossier userData/databases pour survivre aux updates.
+  const backupDir = path.resolve(app.getPath("appData"), "YS-Launcher-backup");
+  const backupFile = path.join(backupDir, "launcher-data.json");
+  return { dbDir, primaryFile, backupDir, backupFile };
+}
+
+function backupLauncherData() {
+  try {
+    const { primaryFile, backupDir, backupFile } = getLauncherDataPaths();
+    if (!fs.existsSync(primaryFile)) return;
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    fs.copyFileSync(primaryFile, backupFile);
+    console.log("[YS-Launcher]: Backup launcher-data OK ->", backupFile);
+  } catch (e) {
+    console.error("[YS-Launcher]: Backup launcher-data échoué:", e);
+  }
+}
+
+function restoreLauncherDataIfMissing() {
+  try {
+    const { dbDir, primaryFile, backupFile } = getLauncherDataPaths();
+    if (fs.existsSync(primaryFile)) return true;
+    if (!fs.existsSync(backupFile)) return false;
+
+    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+    fs.copyFileSync(backupFile, primaryFile);
+    console.log("[YS-Launcher]: Restauration launcher-data OK ->", primaryFile);
+    return true;
+  } catch (e) {
+    console.error("[YS-Launcher]: Restauration launcher-data échouée:", e);
+    return false;
+  }
+}
+
 if (dev) {
   let appPath = path.resolve("./data/Launcher").replace(/\\/g, "/");
   let appdata = path.resolve("./data").replace(/\\/g, "/");
@@ -40,6 +81,11 @@ else
     UpdateWindow.createWindow();
     console.log("Étape 3 : Fenêtre principale ou de mise à jour créée.");
   });
+
+// Sauvegarde à la fermeture (couvre fermeture normale + quitAndInstall).
+app.on("before-quit", () => {
+  backupLauncherData();
+});
 
 ipcMain.on("main-window-open", () => MainWindow.createWindow());
 ipcMain.on("main-window-dev-tools", () =>
@@ -77,6 +123,11 @@ ipcMain.on("update-window-progress-load", () =>
 
 ipcMain.handle("path-user-data", () => app.getPath("userData"));
 ipcMain.handle("appData", (e) => app.getPath("appData"));
+
+// Appelé au démarrage AVANT toute initialisation d'electron-store côté renderer.
+ipcMain.handle("launcher-data-restore-if-missing", () => {
+  return restoreLauncherDataIfMissing();
+});
 
 ipcMain.on("main-window-maximize", () => {
   if (MainWindow.getWindow().isMaximized()) {

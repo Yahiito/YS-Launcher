@@ -18,6 +18,8 @@ class Splash {
         this.message = document.querySelector(".message");
         this.progress = document.querySelector(".progress");
         document.addEventListener('DOMContentLoaded', async () => {
+            // Évite que electron-store recrée un launcher-data vide si le fichier a disparu.
+            try { await ipcRenderer.invoke('launcher-data-restore-if-missing'); } catch {}
             let databaseLauncher = new database();
             let configClient = await databaseLauncher.readData('configClient');
             let theme = configClient?.launcher_config?.theme || "auto"

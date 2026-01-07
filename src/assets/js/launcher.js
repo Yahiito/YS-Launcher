@@ -32,6 +32,8 @@ class Launcher {
     this.initLog();
     console.log("Étape 2 : Raccourcis configurés.");
     this.shortcut();
+    // Important: restaurer la DB AVANT toute lecture (thème, comptes, etc.).
+    try { await ipcRenderer.invoke('launcher-data-restore-if-missing'); } catch {}
     console.log("Étape 3 : Arrière-plan défini.");
     await setBackground();
     console.log("Étape 4 : Cadre de la fenêtre initialisé.");

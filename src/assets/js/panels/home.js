@@ -23,8 +23,15 @@ class Home {
     this.db = new database();
     this.news();
     this.socialLick();
+    this.settingsBtn();
     this.instancesSelect();
     await this.showWelcomeMessage();
+  }
+
+  settingsBtn() {
+    const settingsButton = document.querySelector(".settings-btn");
+    if (!settingsButton) return;
+    settingsButton.addEventListener("click", () => changePanel("settings"));
   }
 
   async news() {
