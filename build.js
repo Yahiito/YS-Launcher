@@ -11,6 +11,7 @@ class Index {
   async init() {
     this.obf = true;
     this.Fileslist = [];
+    this.publish = undefined;
     process.argv.forEach(async (val) => {
       if (val.startsWith("--icon")) {
         return this.iconSet(val.split("=")[1]);
@@ -24,6 +25,10 @@ class Index {
       if (val.startsWith("--build")) {
         let buildType = val.split("=")[1];
         if (buildType == "platform") return await this.buildPlatform();
+      }
+
+      if (val.startsWith("--publish")) {
+        this.publish = val.split("=")[1];
       }
     });
   }
@@ -70,8 +75,23 @@ class Index {
 
   async buildPlatform() {
     await this.Obfuscate();
+
+    const publishPolicy = (() => {
+      if (this.publish) return this.publish;
+      if (process.env.PUBLISH) return process.env.PUBLISH;
+      if (
+        process.env.GITHUB_REF &&
+        process.env.GITHUB_REF.startsWith("refs/tags/")
+      ) {
+        return "always";
+      }
+      if (process.env.CI) return "never";
+      return "never";
+    })();
+
     builder
       .build({
+        publish: publishPolicy,
         config: {
           generateUpdatesFilesForAllChannels: false,
           appId: preductname,
