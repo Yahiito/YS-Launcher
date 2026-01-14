@@ -18,8 +18,6 @@ class Splash {
         this.message = document.querySelector(".message");
         this.progress = document.querySelector(".progress");
         document.addEventListener('DOMContentLoaded', async () => {
-            // Évite que electron-store recrée un launcher-data vide si le fichier a disparu.
-            try { await ipcRenderer.invoke('launcher-data-restore-if-missing'); } catch {}
             let databaseLauncher = new database();
             let configClient = await databaseLauncher.readData('configClient');
             let theme = configClient?.launcher_config?.theme || "auto"
@@ -32,9 +30,9 @@ class Splash {
 
     async startAnimation() {
         let splashes = [
-            { "message": "Meurs", "author": "Yahito" },
-            { "message": "Tu sers à rien", "author": "Yahito" },
-            { "message": "Je suis saoulé", "author": "Yahito" }
+            { "message": "Je... vie...", "author": "Luuxis" },
+            { "message": "Salut je suis du code.", "author": "Luuxis" },
+            { "message": "Linux n'est pas un os, mais un kernel.", "author": "Luuxis" }
         ];
         let splash = splashes[Math.floor(Math.random() * splashes.length)];
         this.splashMessage.textContent = splash.message;
