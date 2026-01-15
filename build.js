@@ -64,7 +64,7 @@ class Index {
                 generateUpdatesFilesForAllChannels: false,
                 appId: preductname,
                 productName: preductname,
-                copyright: `Copyright © 2020-${new Date().getFullYear()} Luuxis`,
+                copyright: 'Copyright © 2020-2024 Luuxis',
                 artifactName: "${productName}-${os}-${arch}.${ext}",
                 extraMetadata: { main: 'app/app.js' },
                 files: ["app/**/*", "package.json", "LICENSE.md"],
@@ -87,10 +87,6 @@ class Index {
                     target: [{
                         target: "nsis",
                         arch: "x64"
-                    },
-                    {
-                        target: "nsis",
-                        arch: "arm64"
                     }]
                 },
                 nsis: {
@@ -106,6 +102,7 @@ class Index {
                     hardenedRuntime: false,
                     gatekeeperAssess: false,
                     mergeASARs: true,
+                    singleArchFiles: "node_modules/sqlite3/**/*",
                     target: [{
                         target: "dmg",
                         arch: "universal"

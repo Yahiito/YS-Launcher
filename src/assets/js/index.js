@@ -18,6 +18,8 @@ class Splash {
         this.message = document.querySelector(".message");
         this.progress = document.querySelector(".progress");
         document.addEventListener('DOMContentLoaded', async () => {
+            // Évite que electron-store recrée un launcher-data vide si le fichier a disparu.
+            try { await ipcRenderer.invoke('launcher-data-restore-if-missing'); } catch {}
             let databaseLauncher = new database();
             let configClient = await databaseLauncher.readData('configClient');
             let theme = configClient?.launcher_config?.theme || "auto"
@@ -31,8 +33,8 @@ class Splash {
     async startAnimation() {
         let splashes = [
             { "message": "Meurs", "author": "Yahito" },
-            { "message": "Casses les couilles", "author": "Yahito" },
-            { "message": "Vous servez  à rien", "author": "Yahito" }
+            { "message": "Tu sers à rien", "author": "Yahito" },
+            { "message": "Je suis saoulé", "author": "Yahito" }
         ];
         let splash = splashes[Math.floor(Math.random() * splashes.length)];
         this.splashMessage.textContent = splash.message;
@@ -53,11 +55,8 @@ class Splash {
     async checkUpdate() {
         this.setStatus(`Recherche de mise à jour...`);
 
-        ipcRenderer.invoke('update-app').catch(err => {
-            const message = (err && typeof err === 'object')
-                ? (err.message || JSON.stringify(err))
-                : String(err);
-            return this.shutdown(`erreur lors de la recherche de mise à jour :<br>${message}`);
+        ipcRenderer.invoke('update-app').then().catch(err => {
+            return this.shutdown(`erreur lors de la recherche de mise à jour :<br>${err.message}`);
         });
 
         ipcRenderer.on('updateAvailable', () => {
