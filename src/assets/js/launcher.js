@@ -81,32 +81,50 @@ class Launcher {
   }
 
   initFrame() {
-    console.log("Initializing Frame...");
-    const platform = os.platform() === "darwin" ? "darwin" : "other";
+    const setup = () => {
+      console.log("Initializing Frame...");
+      const platform = os.platform() === "darwin" ? "darwin" : "other";
 
-    document.querySelector(`.${platform} .frame`).classList.toggle("hide");
+      const frame = document.querySelector(`.${platform} .frame`);
+      if (!frame) {
+        console.warn(`[YS-Launcher]: Frame introuvable pour platform=${platform}`);
+        return;
+      }
 
-    document
-      .querySelector(`.${platform} .frame #minimize`)
-      .addEventListener("click", () => {
-        ipcRenderer.send("main-window-minimize");
-      });
+      frame.classList.toggle("hide");
 
-    let maximized = false;
-    let maximize = document.querySelector(`.${platform} .frame #maximize`);
-    maximize.addEventListener("click", () => {
-      if (maximized) ipcRenderer.send("main-window-maximize");
-      else ipcRenderer.send("main-window-maximize");
-      maximized = !maximized;
-      maximize.classList.toggle("icon-maximize");
-      maximize.classList.toggle("icon-restore-down");
-    });
+      const minimizeBtn = frame.querySelector("#minimize");
+      if (minimizeBtn) {
+        minimizeBtn.addEventListener("click", () => {
+          ipcRenderer.send("main-window-minimize");
+        });
+      }
 
-    document
-      .querySelector(`.${platform} .frame #close`)
-      .addEventListener("click", () => {
-        ipcRenderer.send("main-window-close");
-      });
+      let maximized = false;
+      const maximizeBtn = frame.querySelector("#maximize");
+      if (maximizeBtn) {
+        maximizeBtn.addEventListener("click", () => {
+          ipcRenderer.send("main-window-maximize");
+          maximized = !maximized;
+          maximizeBtn.classList.toggle("icon-maximize");
+          maximizeBtn.classList.toggle("icon-restore-down");
+        });
+      }
+
+      const closeBtn = frame.querySelector("#close");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          ipcRenderer.send("main-window-close");
+        });
+      }
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", setup, { once: true });
+      return;
+    }
+
+    setup();
   }
 
   async initConfigClient() {
@@ -156,76 +174,161 @@ class Launcher {
   }
 
   async startLauncher() {
-    try {
-      const configClient = await this.db.readData("configClient");
-      // Récupère tous les comptes locaux
-      const allAccounts = await this.db.readAllData("accounts");
-      let connectedAccounts = [];
-      for (const acc of allAccounts) {
-        if (acc.username && acc.password) {
-          try {
-            // Tente une connexion automatique au site web
-            const response = await fetch("https://lapepterie.com/Minecraft/auth.php", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ username: acc.username, password: acc.password }),
-              credentials: "include"
-            });
-            const data = await response.json();
-            if (data && data.username) {
-              connectedAccounts.push(acc);
-              // Optionnel : mettre à jour la session locale si besoin
-            }
-          } catch (e) {
-            console.warn("[YS-Launcher]: Connexion auto échouée pour", acc.username, e);
-          }
-        }
-        new logger(pkg.name, '#7289da')
-    }
+    let accounts = await this.db.readAllData("accounts");
+    let configClient = await this.db.readData("configClient");
+    let account_selected = configClient ? configClient.account_selected : null;
+    let popupRefresh = new popup();
 
-    // ...existing code...
-      // Si au moins un compte connecté, sélectionne le premier
-      if (connectedAccounts.length > 0) {
-        const account = connectedAccounts[0];
-        // Ajoute le compte à l'UI (liste comptes paramètre)
-        if (typeof addAccount === "function") {
-          addAccount(account);
+    if (accounts?.length) {
+      for (let account of accounts) {
+        let account_ID = account.ID;
+
+        if (account.error) {
+          await this.db.deleteData("accounts", account_ID);
+          continue;
         }
-        if (typeof accountSelect === "function") {
-          try {
-            await accountSelect(account);
-          } catch (e) {
-            console.error("[YS-Launcher]: Erreur lors de accountSelect:", e);
-          }
-        }
-        // ...lance le jeu ou la home comme avant...
-        const username = account.name || account.username || "OfflineUser";
-        if (typeof this.launchOffline === "function") {
-          await this.launchOffline({
-            type: "offline",
-            username,
-            version: this.config?.version || "1.20.1",
+
+        if (account?.meta?.type === "Xbox") {
+          popupRefresh.openPopup({
+            title: "Connexion",
+            content: `Refresh account Type: ${account.meta.type} | Username: ${account.name}`,
+            color: "var(--color)",
+            background: false,
           });
-        } else {
-          changePanel("home");
+
+          let refresh_accounts = await new Microsoft(this.config.client_id).refresh(account);
+
+          if (refresh_accounts.error) {
+            await this.db.deleteData("accounts", account_ID);
+            if (account_ID == account_selected) {
+              configClient.account_selected = null;
+              await this.db.updateData("configClient", configClient);
+            }
+            console.error(`[Account] ${account.name}: ${refresh_accounts.errorMessage}`);
+            continue;
+          }
+
+          refresh_accounts.ID = account_ID;
+          await this.db.updateData("accounts", refresh_accounts, account_ID);
+          await addAccount(refresh_accounts);
+          if (account_ID == account_selected) await accountSelect(refresh_accounts);
+          continue;
         }
-        return;
+
+        if (account?.meta?.type === "AZauth") {
+          popupRefresh.openPopup({
+            title: "Connexion",
+            content: `Refresh account Type: ${account.meta.type} | Username: ${account.name}`,
+            color: "var(--color)",
+            background: false,
+          });
+
+          let refresh_accounts = await new AZauth(this.config.online).verify(account);
+
+          if (refresh_accounts.error) {
+            await this.db.deleteData("accounts", account_ID);
+            if (account_ID == account_selected) {
+              configClient.account_selected = null;
+              await this.db.updateData("configClient", configClient);
+            }
+            console.error(`[Account] ${account.name}: ${refresh_accounts.message}`);
+            continue;
+          }
+
+          refresh_accounts.ID = account_ID;
+          await this.db.updateData("accounts", refresh_accounts, account_ID);
+          await addAccount(refresh_accounts);
+          if (account_ID == account_selected) await accountSelect(refresh_accounts);
+          continue;
+        }
+
+        if (account?.meta?.type === "Mojang") {
+          popupRefresh.openPopup({
+            title: "Connexion",
+            content: `Refresh account Type: ${account.meta.type} | Username: ${account.name}`,
+            color: "var(--color)",
+            background: false,
+          });
+
+          if (account?.meta?.online === false) {
+            // Web/offline provider: no token refresh, just load it.
+            if (account?.meta?.provider === "web") {
+              await addAccount(account);
+              if (account_ID == account_selected) await accountSelect(account);
+              continue;
+            }
+
+            let refresh_accounts = await Mojang.login(account.name);
+            refresh_accounts.ID = account_ID;
+            await addAccount(refresh_accounts);
+            await this.db.updateData("accounts", refresh_accounts, account_ID);
+            if (account_ID == account_selected) await accountSelect(refresh_accounts);
+            continue;
+          }
+
+          let refresh_accounts = await Mojang.refresh(account);
+
+          if (refresh_accounts.error) {
+            await this.db.deleteData("accounts", account_ID);
+            if (account_ID == account_selected) {
+              configClient.account_selected = null;
+              await this.db.updateData("configClient", configClient);
+            }
+            console.error(`[Account] ${account.name}: ${refresh_accounts.errorMessage}`);
+            continue;
+          }
+
+          refresh_accounts.ID = account_ID;
+          await this.db.updateData("accounts", refresh_accounts, account_ID);
+          await addAccount(refresh_accounts);
+          if (account_ID == account_selected) await accountSelect(refresh_accounts);
+          continue;
+        }
+
+        console.error(`[Account] ${account?.name}: Account Type Not Found`);
+        await this.db.deleteData("accounts", account_ID);
+        if (account_ID == account_selected) {
+          configClient.account_selected = null;
+          await this.db.updateData("configClient", configClient);
+        }
       }
-      // Sinon, panel login
-      changePanel("login");
-    } catch (err) {
-      console.error("[YS-Launcher]: Erreur startLauncher:", err);
+
+      accounts = await this.db.readAllData("accounts");
+      configClient = await this.db.readData("configClient");
+      account_selected = configClient ? configClient.account_selected : null;
+
+      if (!accounts?.length) {
+        popupRefresh.closePopup();
+        if (configClient) {
+          configClient.account_selected = null;
+          await this.db.updateData("configClient", configClient);
+        }
+        return changePanel("login");
+      }
+
+      if (!account_selected) {
+        configClient.account_selected = accounts[0].ID;
+        await this.db.updateData("configClient", configClient);
+        await accountSelect(accounts[0]);
+      }
+
+      popupRefresh.closePopup();
+      changePanel("home");
+    } else {
+      popupRefresh.closePopup();
       changePanel("login");
     }
   }
 
   // Added a new method to handle theme initialization
   initializeTheme() {
-    document.addEventListener('DOMContentLoaded', async () => {
-        let configClient = await this.db.readData('configClient');
-        let theme = configClient?.launcher_config?.theme || "auto";
-        let isDarkTheme = await ipcRenderer.invoke('is-dark-theme', theme).then(res => res);
-        document.body.className = isDarkTheme ? 'dark global' : 'light global';
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Defensive: init() calls this before `this.db` exists.
+      const db = this.db || new database();
+      let configClient = await db.readData("configClient");
+      let theme = configClient?.launcher_config?.theme || "auto";
+      let isDarkTheme = await ipcRenderer.invoke("is-dark-theme", theme).then((res) => res);
+      document.body.className = isDarkTheme ? "dark global" : "light global";
     });
   }
 }

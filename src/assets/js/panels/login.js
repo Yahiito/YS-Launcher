@@ -72,79 +72,164 @@ class Login {
   async getCrack() {
     let popupLogin = new popup();
 
-    // Affiche le choix entre connexion / inscription
-    let loginChoice = document.querySelector(".login-choice");
-    loginChoice.classList.add("login-choice");
-    loginChoice.style.display = "block";
+    const AUTH_URL = "https://lapepterie.com/Minecraft/auth.php";
+    const REGISTER_URL = "https://lapepterie.com/Minecraft/register.php";
 
-    // Formulaires existants ou à créer dynamiquement
-    let loginOffline = document.querySelector(".login-offline");
+    const postJson = async (url, bodyObj, withCredentials = false) => {
+      let response;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          headers: {
+            Accept: "application/json, text/plain, */*",
+            "Content-Type": "application/json; charset=UTF-8",
+          },
+          body: JSON.stringify(bodyObj),
+          credentials: withCredentials ? "include" : "same-origin",
+        });
+      } catch (err) {
+        return {
+          ok: false,
+          message: `Impossible de contacter le serveur. (${err?.message || err})`,
+        };
+      }
 
-    let signupOffline = document.querySelector(".signup-offline");
-    if (!signupOffline) {
-      signupOffline = document.createElement("div");
-      signupOffline.classList.add("signup-offline");
-      signupOffline.style.display = "none";
-    }
+      const rawText = await response.text();
+      let json;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        json = null;
+      }
 
-    // Au départ cacher les 2 formulaires
-    loginOffline.style.display = "none";
-    signupOffline.style.display = "none";
+      if (!response.ok) {
+        return {
+          ok: false,
+          message:
+            json?.message || json?.error || rawText || `Erreur HTTP ${response.status}`,
+        };
+      }
 
-    // Quand clic sur connexion
-    loginChoice.querySelector("#btn-login").addEventListener("click", () => {
-      loginChoice.style.display = "none";
-      loginOffline.style.display = "block";
-    });
+      if (json) {
+        const explicitError =
+          json.error === true ||
+          json.status === "error" ||
+          json.success === false ||
+          typeof json.error === "string";
+        if (explicitError) {
+          return {
+            ok: false,
+            message: json.message || json.error || json.reason || "Erreur inconnue.",
+          };
+        }
+        return { ok: true, data: json };
+      }
 
-    // Quand clic sur inscription
-    loginChoice.querySelector("#btn-signup").addEventListener("click", () => {
-      loginChoice.style.display = "none";
-      signupOffline.style.display = "block";
-    });
+      return {
+        ok: false,
+        message: rawText || "Réponse serveur invalide.",
+      };
+    };
 
-    // Annuler inscription
-    signupOffline
-      .querySelector(".cancel-signup")
-      ?.addEventListener("click", () => {
-        signupOffline.style.display = "none";
-        loginChoice.style.display = "block";
-      });
+    const validateUsername = (username) => {
+      if (!username || username.length < 3)
+        return "Votre pseudo doit faire au moins 3 caractères.";
+      if (username.match(/\s/g))
+        return "Votre pseudo ne doit pas contenir d'espaces.";
+      return null;
+    };
 
-    // Annuler connexion
-    let cancelOffline = document.querySelector(".cancel-offline");
-    if (cancelOffline) {
-      cancelOffline.style.display = "inline-block";
-      cancelOffline.addEventListener("click", () => {
-        loginOffline.style.display = "none";
-        loginChoice.style.display = "block";
-      });
-    }
+    const validateEmail = (email) => {
+      if (!email) return "Veuillez entrer un email valide.";
+      if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/))
+        return "Veuillez entrer un email valide.";
+      return null;
+    };
 
-    // Connexion offline
+    const toWebAuthenticator = (api, username, password) => {
+      const name = api?.name || api?.username || username;
+      const uuid = api?.uuid || api?.UUID || api?.id || api?.userId || null;
+      const accessToken = api?.access_token || api?.accessToken || "offline-token";
+
+      return {
+        access_token: accessToken,
+        client_token: uuid || accessToken || "offline-client",
+        uuid: uuid,
+        name: name,
+        user_properties:
+          typeof api?.user_properties === "string"
+            ? api.user_properties
+            : JSON.stringify(api?.user_properties ?? {}),
+        meta: {
+          online: false,
+          type: "Mojang",
+          provider: "web",
+          expiresAt: api?.expiresAt ?? null,
+        },
+        web: {
+          accountId: api?.ID ?? null,
+          email: api?.email ?? null,
+          skin: api?.skin ?? null,
+        },
+        // Utilisé pour la reconnexion auto côté launcher (si tu la gardes)
+        username,
+        password,
+      };
+    };
+
+    const loginChoice = document.querySelector(".login-choice");
+    const loginOffline = document.querySelector(".login-offline");
+    const signupOffline = document.querySelector(".signup-offline");
+
+    const btnLogin = document.querySelector("#btn-login");
+    const btnSignup = document.querySelector("#btn-signup");
+
     const emailOffline = document.querySelector(".email-offline");
     const passwordOffline = document.querySelector(".password-offline");
     const connectOffline = document.querySelector(".connect-offline");
+    const cancelOffline = document.querySelector(".cancel-offline");
 
-    connectOffline.addEventListener("click", async () => {
-      const username = emailOffline.value.trim();
-      const password = passwordOffline.value;
+    const usernameSignup = signupOffline?.querySelector(".username-signup");
+    const emailSignup = signupOffline?.querySelector(".email-signup");
+    const passwordSignup = signupOffline?.querySelector(".password-signup");
+    const connectSignup = signupOffline?.querySelector(".connect-signup");
+    const cancelSignup = signupOffline?.querySelector(".cancel-signup");
 
-      if (username.length < 3) {
-        popupLogin.openPopup({
-          title: "Erreur",
-          content: "Votre pseudo doit faire au moins 3 caractères.",
-          options: true,
-        });
-        return;
+    const hideAll = () => {
+      for (const elem of [loginChoice, loginOffline, signupOffline]) {
+        if (elem) elem.style.display = "none";
       }
+    };
 
-      if (username.match(/ /g)) {
-        popupLogin.openPopup({
-          title: "Erreur",
-          content: "Votre pseudo ne doit pas contenir d'espaces.",
-          options: true,
-        });
+    const showChoice = () => {
+      hideAll();
+      if (loginChoice) loginChoice.style.display = "block";
+    };
+
+    const showLogin = () => {
+      hideAll();
+      if (loginOffline) loginOffline.style.display = "block";
+      if (cancelOffline) cancelOffline.style.display = "";
+    };
+
+    const showSignup = () => {
+      hideAll();
+      if (signupOffline) signupOffline.style.display = "block";
+    };
+
+    showChoice();
+    btnLogin?.addEventListener("click", showLogin);
+    btnSignup?.addEventListener("click", showSignup);
+    cancelOffline?.addEventListener("click", showChoice);
+    cancelSignup?.addEventListener("click", showChoice);
+
+    connectOffline?.addEventListener("click", async () => {
+      const username = emailOffline?.value?.trim();
+      const password = passwordOffline?.value || "";
+
+      const usernameError = validateUsername(username);
+      if (usernameError) {
+        popupLogin.openPopup({ title: "Erreur", content: usernameError, options: true });
         return;
       }
 
@@ -157,84 +242,46 @@ class Login {
         return;
       }
 
-      try {
-        // Appel backend pour connexion
-        const response = await fetch(
-          "https://lapepterie.com/Minecraft/auth.php",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password }),
-            credentials: "include", // <== Important pour gérer les cookies de session
-          }
-        );
+      popupLogin.openPopup({
+        title: "Connexion",
+        content: "Vérification des identifiants...",
+        color: "var(--color)",
+      });
 
-        const data = await response.json();
+      const authRes = await postJson(AUTH_URL, { username, password }, true);
+      if (!authRes.ok) {
+        popupLogin.openPopup({ title: "Erreur", content: authRes.message, options: true });
+        return;
+      }
 
-        if (!response.ok || data.error) {
-          popupLogin.openPopup({
-            title: "Erreur",
-            content: data.error || "Connexion refusée.",
-            options: true,
-          });
-          return;
-        }
-
-        // Ajout obligatoire de meta.type pour launcher.js
-        if (!data.meta) data.meta = {};
-        data.meta.type = "offline";
-
-        // Ajoute le mot de passe saisi à l'objet data pour la reconnexion auto
-        data.password = password;
-        // Ajoute explicitement le champ username pour la cohérence locale
-        data.username = username;
-        await this.saveData(data);
-        popupLogin.closePopup();
-      } catch (err) {
-        console.error(err);
+      const authenticator = toWebAuthenticator(authRes.data, username, password);
+      if (!authenticator.name) {
         popupLogin.openPopup({
           title: "Erreur",
-          content: "Erreur réseau ou serveur.",
+          content: "Réponse serveur invalide (username manquant).",
           options: true,
         });
+        return;
       }
+
+      await this.saveData(authenticator);
+      popupLogin.closePopup();
     });
 
-    // Inscription (exemple basique)
-    const usernameSignup = signupOffline.querySelector(".username-signup");
-    const emailSignup = signupOffline.querySelector(".email-signup");
-    const passwordSignup = signupOffline.querySelector(".password-signup");
-    const connectSignup = signupOffline.querySelector(".connect-signup");
-
     connectSignup?.addEventListener("click", async () => {
-      const username = usernameSignup.value.trim();
-      const email = emailSignup.value.trim();
-      const password = passwordSignup.value;
+      const username = usernameSignup?.value?.trim();
+      const email = emailSignup?.value?.trim();
+      const password = passwordSignup?.value || "";
 
-      if (username.length < 3) {
-        popupLogin.openPopup({
-          title: "Erreur",
-          content: "Votre pseudo doit faire au moins 3 caractères.",
-          options: true,
-        });
+      const usernameError = validateUsername(username);
+      if (usernameError) {
+        popupLogin.openPopup({ title: "Erreur", content: usernameError, options: true });
         return;
       }
 
-      if (username.match(/ /g)) {
-        popupLogin.openPopup({
-          title: "Erreur",
-          content: "Votre pseudo ne doit pas contenir d'espaces.",
-          options: true,
-        });
-        return;
-      }
-
-      if (!email || !email.includes("@")) {
-        popupLogin.openPopup({
-          title: "Erreur",
-          content: "Veuillez entrer un email valide.",
-          options: true,
-        });
+      const emailError = validateEmail(email);
+      if (emailError) {
+        popupLogin.openPopup({ title: "Erreur", content: emailError, options: true });
         return;
       }
 
@@ -248,24 +295,15 @@ class Login {
       }
 
       try {
-        // Appel backend inscription
-        const response = await fetch(
-          "https://lapepterie.com/Minecraft/register.php", // adapte l’URL
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, email, password }),
-          }
-        );
+        popupLogin.openPopup({
+          title: "Inscription",
+          content: "Création du compte...",
+          color: "var(--color)",
+        });
 
-        const data = await response.json();
-
-        if (!response.ok || data.error) {
-          popupLogin.openPopup({
-            title: "Erreur",
-            content: data.error || "Inscription refusée.",
-            options: true,
-          });
+        const registerRes = await postJson(REGISTER_URL, { username, email, password }, false);
+        if (!registerRes.ok) {
+          popupLogin.openPopup({ title: "Erreur", content: registerRes.message, options: true });
           return;
         }
 
@@ -275,8 +313,7 @@ class Login {
           options: true,
         });
 
-        signupOffline.style.display = "none";
-        loginChoice.style.display = "block";
+        showChoice();
       } catch (err) {
         console.error(err);
         popupLogin.openPopup({
