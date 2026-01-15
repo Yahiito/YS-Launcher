@@ -18,6 +18,10 @@ const MainWindow = require("./assets/js/windows/mainWindow.js");
 
 let dev = process.env.NODE_ENV === 'dev';
 
+// When running from source (e.g. `npm start`), Electron apps are usually not packaged.
+// electron-updater will throw in that case, so treat it as dev.
+dev = dev || !app.isPackaged;
+
 if (dev) {
     let appPath = path.resolve('./data/Launcher').replace(/\\/g, '/');
     let appdata = path.resolve('./data').replace(/\\/g, '/');
@@ -78,16 +82,21 @@ app.on('window-all-closed', () => app.quit());
 autoUpdater.autoDownload = false;
 
 ipcMain.handle('update-app', async () => {
-    return await new Promise(async (resolve, reject) => {
-        autoUpdater.checkForUpdates().then(res => {
-            resolve(res);
-        }).catch(error => {
-            reject({
-                error: true,
-                message: error
-            })
-        })
-    })
+    try {
+        // electron-updater cannot check for updates in dev/unpackaged mode.
+        if (!app.isPackaged) {
+            const updateWindow = UpdateWindow.getWindow();
+            if (updateWindow) updateWindow.webContents.send('update-not-available');
+            return { skipped: true, reason: 'app-not-packaged' };
+        }
+
+        return await autoUpdater.checkForUpdates();
+    } catch (error) {
+        const message = error?.message ? String(error.message) : String(error);
+        const normalized = new Error(message);
+        if (error?.stack) normalized.stack = error.stack;
+        throw normalized;
+    }
 })
 
 autoUpdater.on('update-available', () => {
@@ -115,5 +124,10 @@ autoUpdater.on('download-progress', (progress) => {
 
 autoUpdater.on('error', (err) => {
     const updateWindow = UpdateWindow.getWindow();
-    if (updateWindow) updateWindow.webContents.send('error', err);
+    if (updateWindow) {
+        updateWindow.webContents.send('error', {
+            message: err?.message ? String(err.message) : String(err),
+            stack: err?.stack ? String(err.stack) : undefined
+        });
+    }
 });
